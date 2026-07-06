@@ -1,0 +1,16 @@
+# Custom partition table for the Secure Boot demo.
+#
+# Why a custom table + a large partition-table offset (0xD000, set in
+# sdkconfig.defaults)?  Turning on Secure Boot makes the second-stage
+# bootloader BIGGER (it now carries a 1216-byte signature block and secure
+# padding). The bootloader lives between 0x2000 and the partition table, so we
+# push the partition table out to 0xD000 to leave the bootloader room to grow.
+# Get this wrong and the signed bootloader overruns the partition table.
+#
+# Offsets are left blank so the generator auto-places each partition right
+# after the one before it, starting at the 0xD000 table offset + 0x1000.
+#
+# Name,     Type, SubType,  Offset,  Size,   Flags
+nvs,        data, nvs,      ,        0x6000,
+phy_init,   data, phy,      ,        0x1000,
+factory,    app,  factory,  ,        1M,

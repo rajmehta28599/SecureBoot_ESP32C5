@@ -1,0 +1,52 @@
+# =============================================================================
+# sdkconfig.defaults  —  Secure Boot demo baseline (Stage 1: plain, SAFE)
+# =============================================================================
+# These defaults produce a NORMAL, unsigned firmware that boots on any board
+# and burns NO eFuses. Flash it first and watch the demo report
+# "Secure Boot: DISABLED". Then move to Stage 2 / Stage 3 in README.md by
+# running `idf.py menuconfig` (menuconfig enforces the valid option combos —
+# prefer it over hand-editing the secure-boot switches below).
+#
+# NOTE: after editing this file, delete the generated `sdkconfig` (or run
+# `idf.py fullclean`) so the new defaults are re-applied.
+
+# --- Target ------------------------------------------------------------------
+CONFIG_IDF_TARGET="esp32c5"
+
+# --- Partition layout (leaves room for a signed bootloader; see partitions.csv)
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_OFFSET=0xD000
+
+# --- Serial monitor niceties -------------------------------------------------
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+
+# =============================================================================
+# STAGE 2 — Signed-app verification (SOFTWARE, still REVERSIBLE, no eFuse burn)
+# -----------------------------------------------------------------------------
+# Uncomment to make the build sign the app with an ECDSA-256 key (the ESP32-C5
+# default scheme) and verify signatures on OTA — WITHOUT locking the hardware.
+# Great for rehearsing the signing workflow safely. Generate the key first:
+#   idf.py secure-generate-signing-key --scheme ecdsa256 secure_boot_signing_key.pem
+#
+# CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=y
+# CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME=y
+# CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_256_BITS=y
+# CONFIG_SECURE_BOOT_SIGNING_KEY="secure_boot_signing_key.pem"
+
+# =============================================================================
+# STAGE 3 — HARDWARE Secure Boot v2  (IRREVERSIBLE — burns eFuses!)
+# -----------------------------------------------------------------------------
+# Do NOT uncomment unless you are on a board you are willing to lock FOREVER.
+# Prefer configuring these through `idf.py menuconfig` -> Security features,
+# which validates dependencies. Kept here only as a reference of what gets set.
+#
+# CONFIG_SECURE_BOOT=y
+# CONFIG_SECURE_BOOT_V2_ENABLED=y
+# CONFIG_SECURE_BOOT_V2_ECDSA_ENABLED=y
+# CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_256_BITS=y
+# CONFIG_SECURE_BOOT_SIGNING_KEY="secure_boot_signing_key.pem"
+# CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES=y
+# # Recommended companion (also irreversible): confidentiality of flash
+# CONFIG_SECURE_FLASH_ENC_ENABLED=y
+# CONFIG_SECURE_FLASH_ENCRYPTION_MODE_DEVELOPMENT=y  # switch to RELEASE for production

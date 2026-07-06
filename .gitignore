@@ -1,0 +1,9 @@
+# ESP-IDF build output
+build/
+sdkconfig
+sdkconfig.old
+
+# NEVER commit Secure Boot / Flash Encryption signing keys — leaking one lets
+# anyone forge firmware for every device that trusts it.
+*.pem
+secure_boot_signing_key*

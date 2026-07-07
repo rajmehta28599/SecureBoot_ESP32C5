@@ -17,6 +17,25 @@ it reads the real eFuse bits via `esp_secure_boot_enabled()` /
 or OFF. Its job is to make the "unprotected → locked" transition observable, not
 to enable anything itself.
 
+**The three states = the three lab stages.** The same unchanged app is meant to
+be flashed in three configurations so you can watch the report change (Stage N
+in `README.md` produces State N):
+
+| Build state | How you get there | App reports | Reversible? |
+|---|---|---|---|
+| A — plain | Stage 1, defaults as shipped | Secure Boot **DISABLED** | yes |
+| B — signed app (software) | Stage 2, uncomment Stage-2 block / menuconfig | Secure Boot **DISABLED** (but app is signed) | yes |
+| C — hardware Secure Boot | Stage 3, `CONFIG_SECURE_BOOT=y` + burn | Secure Boot **ENABLED** | **NO — eFuse burned** |
+
+The lesson the demo teaches: signing an app (B) is *not* the same as locking the
+hardware (C). Only C flips the eFuse the reporter reads.
+
+**Code shape:** a single translation unit — `main/secure_boot_demo_main.c`,
+registered in `main/CMakeLists.txt` with `PRIV_REQUIRES bootloader_support`
+(the component that exposes the eFuse-query API). If you add code that calls
+into another IDF component (nvs, esp_wifi, …), add it to that `PRIV_REQUIRES`
+list or the build won't find the headers.
+
 ## ⚠️ Irreversible-hardware rule (most important thing here)
 
 Enabling `CONFIG_SECURE_BOOT` or Flash Encryption **burns eFuses, which are
@@ -30,8 +49,8 @@ images signed with the project's key; losing the key bricks updates forever.
 
 ## Build / flash / debug (ESP-IDF, not Arduino IDE)
 
-Run from an ESP-IDF terminal (after `export.bat`). Target and port are already
-recorded in `.vscode/settings.json` (ESP-IDF v6.0.1, `COM15`).
+Target and port are already recorded in `.vscode/settings.json` (ESP-IDF
+v6.0.1, `COM15`).
 
 ```bash
 idf.py set-target esp32c5        # once
@@ -40,6 +59,19 @@ idf.py -p COM15 flash monitor    # flash + serial (exit monitor: Ctrl+])
 idf.py fullclean                 # after editing sdkconfig.defaults
 idf.py -p COM15 efuse-summary    # inspect what is / isn't burned
 ```
+
+⚠️ **Terminal build gotcha on this machine:** running `export.ps1`/`export.bat`
+reports OK but does **not** put `riscv32-esp-elf-gcc` on `PATH`, so `idf.py
+build` fails with *"CMAKE_C_COMPILER riscv32-esp-elf-gcc … was not found in the
+PATH."* This is an environment defect, not a project bug. Reliable options:
+- **Preferred:** use the **VS Code ESP-IDF extension's Build** button — it sets
+  `PATH` itself (`.vscode/settings.json` is configured for it).
+- **Repair the terminal:** `& "C:\Users\rajme\esp\v6.0.1\esp-idf\install.ps1" esp32c5`.
+- **One-shot workaround:** after `. export.ps1`, prepend
+  `C:\Users\rajme\.espressif\tools\riscv32-esp-elf\esp-15.2.0_20251204\riscv32-esp-elf\bin`
+  to `$env:PATH`, then `idf.py build`.
+- Run `idf.py` / `idf_tools.py` in **PowerShell**, never the Bash tool — under
+  MSys/Git-Bash they abort with *"MSys/Mingw is not supported."*
 
 There is **no Arduino IDE build** for this folder. All `.c` sources live under
 `main/` and are registered in `main/CMakeLists.txt`.

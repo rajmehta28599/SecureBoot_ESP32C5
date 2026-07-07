@@ -80,8 +80,11 @@ There is **no Arduino IDE build** for this folder. All `.c` sources live under
 
 - Secure Boot **v2** only. Schemes: **RSA-3072, ECDSA-384/256/192**. Default and
   recommended: **ECDSA (v2)**; this demo uses **ECDSA-256** (fast verify, short key).
-- **ECDSA-P192 is disabled by default** on the C5 and the curve mode locks once
-  Secure Boot is enabled — use P-256 (or P-384) unless P-192 was set beforehand.
+- **ECDSA-P192 is a weak legacy curve (~96-bit) — prefer P-256 (default) or P-384.**
+  The "disabled-by-default / curve-locks-on-Secure-Boot-enable" caveat some ESP-IDF
+  docs mention is an **ESP32-H2/H21 trait, NOT the C5** (it's gated on
+  `SOC_ECDSA_P192_CURVE_DEFAULT_DISABLED`, which the C5 does not set). Verified against
+  local v6.0.1 `soc_caps.h`; see `SECURE_BOOT_DEEP_DIVE.md` §4.6.
 - Up to **3 public-key digest slots** → key revocation/rotation is supported
   (`KEY_REVOKEx`). Sign an OTA with a new key, then revoke the old one.
 - Relevant Kconfig: `CONFIG_SECURE_BOOT`, `CONFIG_SECURE_BOOT_V2_ECDSA_ENABLED`,
@@ -110,3 +113,9 @@ its contents, and generate it on a trusted machine (or HSM) for production.
 `README.md` contains the full theory writeup and the 3-stage lab
 (baseline → software signed-app verification → hardware Secure Boot). Point users
 there rather than duplicating steps.
+
+For the full conceptual **deep dive** — boot-time chain of trust, the whole
+ESP32-family support matrix, signature schemes, eFuse/key layout & revocation, a
+per-file data map, the threat model, and a glossary of every term — see
+`SECURE_BOOT_DEEP_DIVE.md` (each section independently fact-checked against the
+local ESP-IDF v6.0.1 docs).

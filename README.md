@@ -8,6 +8,11 @@ stages and watch a device go from "runs anything" to "cryptographically locked".
 > before Stage 3.** Enabling hardware Secure Boot **burns eFuses and cannot be
 > undone.** Learn on a spare/dev board, not on a production device.
 
+📖 **New here?** The [`SECURE_BOOT_DEEP_DIVE.md`](./SECURE_BOOT_DEEP_DIVE.md) companion is a
+one-stop, first-timer-friendly walkthrough — boot-flow diagrams, the full ESP32-family
+support matrix, signature schemes, eFuse/key internals, a per-file map, the threat model,
+and a glossary of every term. This README is the theory + the 3-stage hands-on lab.
+
 ---
 
 ## Part 1 — Theory
@@ -124,7 +129,7 @@ Only if all three pass does control transfer.
 | Secure Boot version | **v2** only |
 | Signature schemes | **RSA-3072, ECDSA-384, ECDSA-256, ECDSA-192** |
 | Default / recommended | **ECDSA (v2)** — fast verify *and* short keys |
-| ECDSA-P192 | **disabled by default** (curve mode locks on SB enable) |
+| ECDSA-P192 | weak legacy curve (~96-bit) — prefer P-256 / P-384. *(The "disabled-by-default, curve-locks-on-enable" caveat is an H2/H21 trait, **not** the C5.)* |
 | Verify time @48 MHz ROM | RSA-3072 ≈ 12.1 ms · ECDSA-P256 ≈ 5.6 ms · ECDSA-P384 ≈ 20.6 ms |
 | Public-key digest slots | **up to 3** (key #0, #1, #2) → supports key **revocation** |
 | Key eFuses | `SECURE_BOOT_EN`, `KEY_PURPOSE_x`, `BLOCK_KEYx`, `KEY_REVOKEx` |
@@ -361,6 +366,8 @@ bootloader, the bootloader verifies the app, and any image not signed with
 | `CMakeLists.txt` | Top-level ESP-IDF project file |
 | `partitions.csv` | Custom table; table pushed to 0xD000 to fit a signed bootloader |
 | `sdkconfig.defaults` | Stage 1 baseline + commented Stage 2/3 option blocks |
+| `SECURE_BOOT_DEEP_DIVE.md` | One-stop deep dive — boot flow, chip matrix, schemes, eFuses, per-file map, threat model, glossary |
+| `CLAUDE.md` | Working rules for Claude Code / contributors in this folder |
 
 ## Key-safety rules
 

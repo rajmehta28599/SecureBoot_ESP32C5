@@ -1,0 +1,259 @@
+<title>ESP32-C5 Secure Boot — Command Quick Reference</title>
+<style>
+  :root{
+    --ground:#0a0f1a; --panel:#111a2b; --panel-2:#16223a;
+    --ink:#dfe7f2; --muted:#8a9bb5; --faint:#5f7290; --line:#24344f;
+    --signal:#34c9be; --burn:#f2a13e; --danger:#eb5a6a; --good:#5ecb7d;
+    --ink-on-accent:#06121a; --code:#0a1220;
+    --mono:ui-monospace,"Cascadia Code","SFMono-Regular","Segoe UI Mono",Consolas,monospace;
+    --sans:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --ground:#eef1f7; --panel:#ffffff; --panel-2:#f4f7fc;
+      --ink:#15213a; --muted:#55668a; --faint:#8493ab; --line:#d4dcea;
+      --signal:#0f9e91; --burn:#c9781a; --danger:#d23b52; --good:#2e9d54;
+      --ink-on-accent:#ffffff; --code:#0d1524;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0a0f1a; --panel:#111a2b; --panel-2:#16223a;
+    --ink:#dfe7f2; --muted:#8a9bb5; --faint:#5f7290; --line:#24344f;
+    --signal:#34c9be; --burn:#f2a13e; --danger:#eb5a6a; --good:#5ecb7d;
+    --ink-on-accent:#06121a; --code:#0a1220;
+  }
+  :root[data-theme="light"]{
+    --ground:#eef1f7; --panel:#ffffff; --panel-2:#f4f7fc;
+    --ink:#15213a; --muted:#55668a; --faint:#8493ab; --line:#d4dcea;
+    --signal:#0f9e91; --burn:#c9781a; --danger:#d23b52; --good:#2e9d54;
+    --ink-on-accent:#ffffff; --code:#0d1524;
+  }
+
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--ground); color:var(--ink); font-family:var(--sans); line-height:1.4; -webkit-font-smoothing:antialiased; }
+  .page{ max-width:1080px; margin:0 auto; padding:clamp(18px,3.5vw,34px) clamp(14px,3.5vw,30px) 60px; }
+
+  header{ display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:14px; }
+  .eyebrow{ font-family:var(--mono); font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--signal); margin:0 0 6px; }
+  h1{ font-family:var(--mono); font-size:clamp(20px,3vw,28px); font-weight:650; letter-spacing:-.01em; margin:0; }
+  header .sub{ color:var(--muted); font-size:13px; margin:5px 0 0; }
+  .tools{ display:flex; gap:8px; }
+  .btn{ font-family:var(--mono); font-size:12px; color:var(--ink); background:var(--panel-2); border:1px solid var(--line);
+    border-radius:8px; padding:8px 13px; cursor:pointer; }
+  .btn:hover{ border-color:var(--signal); color:var(--signal); }
+  .btn.primary{ background:var(--signal); color:var(--ink-on-accent); border-color:var(--signal); font-weight:650; }
+
+  .legend{ display:flex; gap:16px; flex-wrap:wrap; margin:0 0 18px; font-family:var(--mono); font-size:11px; color:var(--muted); }
+  .legend span{ display:inline-flex; align-items:center; gap:7px; }
+  .lk{ width:11px;height:11px;border-radius:3px; }
+  .lk.rev{ background:var(--good);} .lk.irr{ background:var(--danger);} .lk.sig{ background:var(--signal);} .lk.fu{ background:var(--burn); }
+
+  .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
+
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 15px 15px; break-inside:avoid; }
+  .card.irr{ border-color:color-mix(in srgb,var(--danger) 45%,var(--line)); }
+  .card > .ch{ display:flex; align-items:center; gap:9px; margin:0 0 4px; }
+  .card h2{ font-family:var(--mono); font-size:14.5px; margin:0; letter-spacing:-.01em; }
+  .card .n{ font-family:var(--mono); font-size:11px; width:20px;height:20px; flex:none; border-radius:6px; display:grid; place-items:center;
+    background:var(--panel-2); color:var(--signal); border:1px solid var(--line); font-weight:650; }
+  .card.irr .n{ color:var(--danger); }
+  .tag{ font-family:var(--mono); font-size:9.5px; letter-spacing:.05em; padding:3px 7px; border-radius:5px; margin-left:auto; white-space:nowrap; }
+  .tag.rev{ color:var(--good); border:1px solid color-mix(in srgb,var(--good) 45%,var(--line)); }
+  .tag.irr{ color:var(--danger); border:1px solid color-mix(in srgb,var(--danger) 50%,var(--line)); }
+  .card .goal{ font-size:11.5px; color:var(--muted); margin:0 0 9px; }
+  .card .goal b{ color:var(--ink); }
+  .card h3{ font-family:var(--mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); margin:11px 0 5px; }
+
+  .cl{ position:relative; margin:5px 0; }
+  .cl code{ display:block; font-family:var(--mono); font-size:11.5px; line-height:1.5; color:#cdd8ea; background:var(--code);
+    border:1px solid var(--line); border-radius:7px; padding:7px 34px 7px 10px; white-space:pre-wrap; word-break:break-word; }
+  .cl code .p{ color:var(--signal); } .cl code .c{ color:var(--faint); }
+  .cl .cp{ position:absolute; top:5px; right:5px; font-family:var(--mono); font-size:10px; color:var(--faint);
+    background:var(--panel-2); border:1px solid var(--line); border-radius:5px; padding:3px 6px; cursor:pointer; opacity:.75; }
+  .cl .cp:hover{ color:var(--signal); border-color:var(--signal); opacity:1; }
+  .cl .cp.done{ color:var(--good); border-color:var(--good); }
+  .note{ font-size:11px; color:var(--faint); margin:7px 0 0; }
+  .note b{ color:var(--burn); font-weight:600; }
+  .note.ok b{ color:var(--good); }
+
+  .facts{ margin-top:18px; border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:14px 16px; break-inside:avoid; }
+  .facts h2{ font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--signal); margin:0 0 10px; }
+  .facts dl{ display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:7px 22px; margin:0; }
+  .facts .f{ display:flex; justify-content:space-between; gap:12px; font-size:11.5px; border-bottom:1px dotted var(--line); padding-bottom:5px; }
+  .facts .f span{ color:var(--muted); } .facts .f b{ font-family:var(--mono); color:var(--ink); font-weight:600; text-align:right; }
+  .facts .f b.fu{ color:var(--burn); }
+
+  footer{ margin-top:16px; color:var(--faint); font-size:11px; }
+  footer code{ font-family:var(--mono); }
+  footer a{ color:var(--signal); }
+
+  :focus-visible{ outline:2px solid var(--signal); outline-offset:2px; border-radius:5px; }
+
+  /* ---------- PRINT: one dense, ink-light page ---------- */
+  @media print{
+    :root{
+      --ground:#fff; --panel:#fff; --panel-2:#f2f4f8; --ink:#0a1220; --muted:#3a465c;
+      --faint:#6b7789; --line:#c3ccd9; --code:#f4f6fa; --signal:#0a7a70; --burn:#a35d10; --danger:#b3283c; --good:#1f7a44;
+    }
+    body{ background:#fff; }
+    .page{ max-width:none; padding:0; }
+    .noprint{ display:none !important; }
+    .grid{ grid-template-columns:1fr 1fr; gap:8px; }
+    .card, .facts{ border-color:#c3ccd9; padding:8px 9px; }
+    .card h2{ font-size:12px; } .cl code{ font-size:9px; color:#111; background:#f4f6fa; padding:4px 8px 4px 7px; line-height:1.35; }
+    .cl .cp{ display:none; } h1{ font-size:17px; } .card .goal, .note, .facts .f{ font-size:9px; }
+    header{ margin-bottom:8px; } .legend{ margin-bottom:9px; font-size:9px; }
+    @page{ size:auto; margin:11mm 10mm; }
+    a{ color:#0a7a70; text-decoration:none; }
+  }
+</style>
+
+<div class="page">
+  <header>
+    <div>
+      <p class="eyebrow">ESP32-C5 · Secure Boot v2 · ESP-IDF v6.0.1</p>
+      <h1>Command quick reference</h1>
+      <p class="sub">Every command to take one board from unprotected to locked. Port <code>COM15</code>; run from the project folder.</p>
+    </div>
+    <div class="tools noprint">
+      <button class="btn primary" id="print">🖨 Print / PDF</button>
+    </div>
+  </header>
+
+  <div class="legend">
+    <span><span class="lk rev"></span>reversible</span>
+    <span><span class="lk irr"></span>irreversible · burns eFuses</span>
+    <span><span class="lk sig"></span>$ command / prompt</span>
+    <span><span class="lk fu"></span>eFuse name</span>
+  </div>
+
+  <div class="grid">
+
+    <!-- COMMON -->
+    <section class="card">
+      <div class="ch"><span class="n">⚙</span><h2>Setup &amp; everyday</h2></div>
+      <p class="goal">One-time target + the loop you’ll repeat.</p>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> idf.py set-target esp32c5</code></div>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> idf.py build</code></div>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> idf.py -p COM15 flash monitor  <span class="c"># exit: Ctrl-]</span></code></div>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> idf.py fullclean  <span class="c"># after editing sdkconfig.defaults</span></code></div>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> idf.py -p COM15 efuse-summary  <span class="c"># what's burned</span></code></div>
+    </section>
+
+    <!-- STAGE 1 -->
+    <section class="card">
+      <div class="ch"><span class="n">1</span><h2>Baseline</h2><span class="tag rev">reversible</span></div>
+      <p class="goal">Build + flash as-is → confirm <b>Secure Boot: DISABLED</b>.</p>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> idf.py build &amp;&amp; idf.py -p COM15 flash monitor</code></div>
+      <p class="note ok">Expect <b>Secure Boot v2 : DISABLED</b> — nothing burned.</p>
+    </section>
+
+    <!-- STAGE 2 -->
+    <section class="card">
+      <div class="ch"><span class="n">2</span><h2>Sign the app</h2><span class="tag rev">reversible</span></div>
+      <p class="goal">Real signature, <b>no eFuse burn</b>. Software only.</p>
+      <h3>Generate signing key</h3>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> idf.py secure-generate-signing-key \
+     --scheme ecdsa256 secure_boot_signing_key.pem</code></div>
+      <h3>sdkconfig keys</h3>
+      <div class="cl"><button class="cp">copy</button><code>CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=y
+CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME=y
+CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_256_BITS=y
+CONFIG_SECURE_BOOT_SIGNING_KEY="secure_boot_signing_key.pem"</code></div>
+      <h3>Rebuild &amp; inspect</h3>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> idf.py fullclean &amp;&amp; idf.py build</code></div>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> espsecure signature-info-v2 build/secure_boot_demo.bin</code></div>
+      <p class="note">Still reports <b>DISABLED</b> — signing ≠ locking.</p>
+    </section>
+
+    <!-- STAGE 3 IDF -->
+    <section class="card irr">
+      <div class="ch"><span class="n">3</span><h2>Lock — IDF flow</h2><span class="tag irr">irreversible</span></div>
+      <p class="goal">Recommended path. <b>Spare board only.</b></p>
+      <h3>1 · configure</h3>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> idf.py menuconfig  <span class="c"># Security features → Enable hardware Secure Boot</span></code></div>
+      <h3>2 · build + flash bootloader by hand</h3>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> idf.py bootloader  <span class="c"># prints the write-flash cmd</span></code></div>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> esptool --chip esp32c5 -p COM15 -b 460800 \
+     write-flash 0x2000 build/bootloader/bootloader.bin</code></div>
+      <h3>3 · flash app, first boot burns eFuses</h3>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> idf.py -p COM15 flash monitor  <span class="c"># NOT the bootloader</span></code></div>
+      <p class="note ok">Expect <b>Secure Boot v2 : ENABLED</b>, then verify with <code>efuse-summary</code>.</p>
+    </section>
+
+    <!-- STAGE 3 MANUAL -->
+    <section class="card irr">
+      <div class="ch"><span class="n">3</span><h2>Lock — manual (espefuse)</h2><span class="tag irr">irreversible</span></div>
+      <p class="goal">Explicit burn, e.g. for external provisioning. Order matters.</p>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> espsecure generate-signing-key --version 2 \
+     --scheme ecdsa256 secure_boot_signing_key.pem</code></div>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> espsecure digest-sbv2-public-key \
+     --keyfile secure_boot_signing_key.pem --output digest.bin</code></div>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> espefuse --port COM15 --chip esp32c5 \
+     burn-key BLOCK_KEY0 digest.bin SECURE_BOOT_DIGEST0</code></div>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> espefuse --port COM15 --chip esp32c5 \
+     burn-efuse SECURE_BOOT_EN</code></div>
+      <p class="note">P-384? also burn <b>SECURE_BOOT_SHA384_EN</b>. Harden: <b>DIS_PAD_JTAG</b>, <b>DIS_USB_JTAG</b>.</p>
+    </section>
+
+    <!-- STAGE 4 -->
+    <section class="card irr">
+      <div class="ch"><span class="n">4</span><h2>Encrypt flash</h2><span class="tag irr">irreversible</span></div>
+      <p class="goal">Confidentiality. Enable <b>with</b> Stage 3. AES-XTS key locked in eFuse.</p>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> idf.py menuconfig  <span class="c"># Enable flash encryption → mode Development/Release</span></code></div>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> idf.py -p COM15 flash monitor  <span class="c"># first boot encrypts in place</span></code></div>
+      <h3>re-flash later</h3>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> idf.py -p COM15 encrypted-flash monitor  <span class="c"># DEV mode only</span></code></div>
+      <p class="note">Release mode: updates are <b>OTA-only</b>. Never cut power mid-encryption.</p>
+    </section>
+
+    <!-- RECOVERY -->
+    <section class="card">
+      <div class="ch"><span class="n">!</span><h2>Recovery</h2></div>
+      <p class="goal">“Bricked” = usually can’t-update, not dead.</p>
+      <div class="cl"><button class="cp">copy</button><code><span class="p">$</span> idf.py -p COM15 encrypted-flash monitor  <span class="c"># dev-mode plaintext soft-brick</span></code></div>
+      <p class="note ok">Recoverable: wrong-key app (re-flash signed) · plaintext-on-encrypted in <b>dev</b> mode · power-loss mid-encrypt.</p>
+      <p class="note"><b>Unrecoverable:</b> lost signing key · download mode permanently disabled + bad image. Back up <code>*.pem</code> offline.</p>
+    </section>
+
+  </div>
+
+  <div class="facts">
+    <h2>Key facts to keep straight</h2>
+    <dl>
+      <div class="f"><span>Enable eFuse (C5)</span><b class="fu">SECURE_BOOT_EN</b></div>
+      <div class="f"><span>Bootloader offset</span><b>0x2000</b></div>
+      <div class="f"><span>Partition table offset</span><b>0xD000</b></div>
+      <div class="f"><span>Key digest slots</span><b>3 (revocation)</b></div>
+      <div class="f"><span>Default scheme</span><b>ECDSA-P256</b></div>
+      <div class="f"><span>Also available</span><b>ECDSA-P384 · RSA-3072</b></div>
+      <div class="f"><span>Flash-enc counter</span><b class="fu">SPI_BOOT_CRYPT_CNT</b></div>
+      <div class="f"><span>Flash-enc cipher</span><b>AES-XTS</b></div>
+      <div class="f"><span>Bootloader flashed by</span><b>esptool (manual)</b></div>
+      <div class="f"><span>idf.py flash + SB on</span><b>skips bootloader</b></div>
+    </dl>
+  </div>
+
+  <footer>
+    Verified against local ESP-IDF v6.0.1 docs (<code>secure-boot-v2.rst</code>, <code>security-features-enablement-workflows.rst</code>,
+    <code>flash-encryption.rst</code>). Full walkthrough: <a href="./secure-boot-setup.html">secure-boot-setup.html</a> ·
+    theory: <a href="./SECURE_BOOT_DEEP_DIVE.md">SECURE_BOOT_DEEP_DIVE.md</a>. Confirm on-chip with <code>idf.py efuse-summary</code>.
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  document.querySelectorAll(".cp").forEach(function(b){
+    b.addEventListener("click", function(){
+      var code = b.parentNode.querySelector("code");
+      var txt = code ? code.innerText.replace(/ /g," ") : "";
+      var done = function(){ b.textContent="✓"; b.classList.add("done"); setTimeout(function(){ b.textContent="copy"; b.classList.remove("done"); },1200); };
+      if (navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done, fb); } else fb();
+      function fb(){ var t=document.createElement("textarea"); t.value=txt; t.style.position="fixed"; t.style.opacity="0";
+        document.body.appendChild(t); t.select(); try{ document.execCommand("copy"); done(); }catch(e){} document.body.removeChild(t); }
+    });
+  });
+  var p=document.getElementById("print"); if(p) p.addEventListener("click", function(){ window.print(); });
+})();
+</script>

@@ -360,6 +360,11 @@ bootloader, the bootloader verifies the app, and any image not signed with
 | Verify a signature | `idf.py secure-verify-signature --keyfile KEY.pem signed.bin` |
 | Inspect signatures | `espsecure signature-info-v2 build/secure_boot_demo.bin` |
 | Read eFuses | `idf.py -p COM15 efuse-summary` |
+| Build signed bootloader (Stage 3) | `idf.py bootloader` → then run the printed `esptool … write-flash 0x2000 …` |
+| Burn Secure Boot eFuses (manual) | `espefuse -p COM15 --chip esp32c5 burn-key BLOCK_KEY0 digest.bin SECURE_BOOT_DIGEST0` · then `… burn-efuse SECURE_BOOT_EN` |
+| Re-flash an encrypted device (dev mode) | `idf.py -p COM15 encrypted-flash monitor` |
+
+> 📇 **Printable one-pager:** [`secure-boot-cheatsheet.html`](./secure-boot-cheatsheet.html) collects every command above (all four stages + recovery) on a single print/PDF-optimized page.
 
 ## Files in this project
 
@@ -373,6 +378,7 @@ bootloader, the bootloader verifies the app, and any image not signed with
 | `SECURE_BOOT_DEEP_DIVE.md` | One-stop deep dive — boot flow, chip matrix, schemes, eFuses, per-file map, threat model, glossary |
 | `secure-boot-flow.html` | Interactive, animated diagram of the boot-time chain of trust (open in a browser) |
 | `secure-boot-setup.html` | Interactive hands-on setup lab — staged commands, simulated serial/menuconfig output, eFuse before/after |
+| `secure-boot-cheatsheet.html` | One-page printable command quick reference (all stages + recovery) |
 | `CLAUDE.md` | Working rules for Claude Code / contributors in this folder |
 
 ## Key-safety rules

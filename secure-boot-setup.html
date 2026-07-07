@@ -1,0 +1,705 @@
+<title>ESP32-C5 Secure Boot — Hands-on Setup Lab</title>
+<style>
+  :root{
+    --ground:#0a0f1a; --panel:#111a2b; --panel-2:#16223a; --raise:#1b2942;
+    --ink:#dfe7f2; --muted:#8a9bb5; --faint:#5f7290; --line:#24344f;
+    --signal:#34c9be; --signal-dim:#1c6b64; --burn:#f2a13e; --danger:#eb5a6a; --good:#5ecb7d;
+    --ink-on-accent:#06121a;
+    --term-bg:#070c15; --term-line:#1d2c47;
+    --radius:14px;
+    --mono:ui-monospace,"Cascadia Code","SFMono-Regular","Segoe UI Mono",Consolas,monospace;
+    --sans:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif;
+    --shadow:0 18px 50px -24px rgba(0,0,0,.7);
+    --maxw:920px;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --ground:#eef1f7; --panel:#ffffff; --panel-2:#f5f8fc; --raise:#eaf0f9;
+      --ink:#15213a; --muted:#55668a; --faint:#8493ab; --line:#d4dcea;
+      --signal:#0f9e91; --signal-dim:#9fded7; --burn:#c9781a; --danger:#d23b52; --good:#2e9d54;
+      --ink-on-accent:#ffffff;
+      --term-bg:#0d1524; --term-line:#26374f;
+      --shadow:0 16px 40px -26px rgba(30,50,90,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0a0f1a; --panel:#111a2b; --panel-2:#16223a; --raise:#1b2942;
+    --ink:#dfe7f2; --muted:#8a9bb5; --faint:#5f7290; --line:#24344f;
+    --signal:#34c9be; --signal-dim:#1c6b64; --burn:#f2a13e; --danger:#eb5a6a; --good:#5ecb7d;
+    --ink-on-accent:#06121a; --term-bg:#070c15; --term-line:#1d2c47; --shadow:0 18px 50px -24px rgba(0,0,0,.7);
+  }
+  :root[data-theme="light"]{
+    --ground:#eef1f7; --panel:#ffffff; --panel-2:#f5f8fc; --raise:#eaf0f9;
+    --ink:#15213a; --muted:#55668a; --faint:#8493ab; --line:#d4dcea;
+    --signal:#0f9e91; --signal-dim:#9fded7; --burn:#c9781a; --danger:#d23b52; --good:#2e9d54;
+    --ink-on-accent:#ffffff; --term-bg:#0d1524; --term-line:#26374f; --shadow:0 16px 40px -26px rgba(30,50,90,.4);
+  }
+
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  @media (prefers-reduced-motion: reduce){ html{ scroll-behavior:auto; } *{ animation-duration:.001ms !important; transition-duration:.001ms !important; } }
+  body{
+    margin:0; color:var(--ink); font-family:var(--sans); line-height:1.55;
+    background:
+      radial-gradient(1100px 520px at 82% -8%, color-mix(in srgb,var(--signal) 8%,transparent), transparent 60%),
+      var(--ground);
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{ max-width:var(--maxw); margin:0 auto; padding:clamp(20px,4vw,50px) clamp(16px,4vw,36px) 80px; }
+
+  a{ color:var(--signal); text-decoration:none; }
+  a:hover{ text-decoration:underline; }
+  code{ font-family:var(--mono); }
+
+  /* header */
+  .eyebrow{ font-family:var(--mono); font-size:12px; letter-spacing:.2em; text-transform:uppercase; color:var(--signal);
+    display:flex; align-items:center; gap:10px; margin:0 0 12px; }
+  .eyebrow::before{ content:""; width:26px; height:1px; background:var(--signal); opacity:.7; }
+  h1{ font-family:var(--mono); font-weight:650; letter-spacing:-.015em; text-wrap:balance;
+    font-size:clamp(27px,4.6vw,44px); line-height:1.05; margin:0 0 14px; }
+  .lede{ max-width:64ch; color:var(--muted); font-size:clamp(15px,1.7vw,17px); margin:0; }
+  .lede b{ color:var(--ink); font-weight:600; }
+
+  /* danger banner */
+  .banner{ margin:26px 0 8px; border:1px solid color-mix(in srgb,var(--danger) 55%,var(--line)); border-radius:var(--radius);
+    background:color-mix(in srgb,var(--danger) 12%,var(--panel)); padding:15px 17px; display:flex; gap:13px; }
+  .banner .i{ font-size:20px; line-height:1.2; }
+  .banner b{ color:var(--danger); }
+  .banner p{ margin:0; font-size:14px; color:var(--ink); }
+
+  /* prereqs */
+  .prereq{ display:flex; flex-wrap:wrap; gap:9px; margin:20px 0 8px; }
+  .pill{ font-family:var(--mono); font-size:12px; color:var(--muted); background:var(--panel); border:1px solid var(--line);
+    padding:7px 12px; border-radius:20px; display:inline-flex; align-items:center; gap:7px; }
+  .pill b{ color:var(--ink); font-weight:600; }
+
+  /* stage rail */
+  .rail{ position:sticky; top:0; z-index:20; margin:26px -8px 0; padding:11px 8px; display:flex; gap:8px; flex-wrap:wrap;
+    background:color-mix(in srgb,var(--ground) 82%,transparent); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); }
+  .rail a{ flex:1 1 auto; min-width:170px; text-decoration:none; display:flex; gap:10px; align-items:center;
+    padding:9px 12px; border:1px solid var(--line); border-radius:10px; background:var(--panel); transition:border-color .2s, background .2s; }
+  .rail a:hover{ border-color:var(--signal); }
+  .rail a.on{ border-color:var(--signal); background:var(--panel-2); }
+  .rail .num{ font-family:var(--mono); font-size:12px; width:22px; height:22px; flex:none; border-radius:6px; display:grid; place-items:center;
+    background:var(--panel-2); color:var(--muted); border:1px solid var(--line); }
+  .rail a.on .num{ background:var(--signal); color:var(--ink-on-accent); border-color:var(--signal); }
+  .rail .rt{ font-size:12.5px; line-height:1.15; }
+  .rail .rt small{ display:block; color:var(--faint); font-family:var(--mono); font-size:10.5px; letter-spacing:.03em; }
+
+  /* stage blocks */
+  .stage{ margin-top:38px; scroll-margin-top:76px; }
+  .stage > .head{ display:flex; align-items:flex-start; gap:14px; margin-bottom:6px; }
+  .stage .badge{ flex:none; font-family:var(--mono); font-size:11px; letter-spacing:.05em; padding:5px 10px; border-radius:7px; margin-top:5px; white-space:nowrap; }
+  .badge.rev{ color:var(--good); border:1px solid color-mix(in srgb,var(--good) 50%,var(--line)); background:color-mix(in srgb,var(--good) 10%,transparent); }
+  .badge.irr{ color:var(--danger); border:1px solid color-mix(in srgb,var(--danger) 55%,var(--line)); background:color-mix(in srgb,var(--danger) 12%,transparent); }
+  .stage h2{ font-family:var(--mono); font-size:clamp(19px,2.6vw,24px); margin:0 0 3px; letter-spacing:-.01em; }
+  .stage h2 .st{ color:var(--signal); }
+  .stage .sub{ color:var(--muted); margin:0; font-size:14.5px; }
+  .stage p{ font-size:15px; }
+  .stage h3{ font-family:var(--mono); font-size:15px; font-weight:640; margin:24px 0 8px; color:var(--ink); display:flex; align-items:center; gap:9px; }
+  .stage h3::before{ content:""; width:8px;height:8px;border-radius:2px; background:var(--signal); flex:none; }
+
+  /* command block */
+  .cmd{ position:relative; background:var(--term-bg); border:1px solid var(--term-line); border-radius:10px; margin:12px 0;
+    font-family:var(--mono); font-size:13px; }
+  .cmd pre{ margin:0; padding:13px 46px 13px 15px; overflow-x:auto; color:var(--ink); }
+  .cmd .pr{ color:var(--signal); user-select:none; }
+  .cmd .cm{ color:var(--faint); }
+  .copy{ position:absolute; top:8px; right:8px; font-family:var(--mono); font-size:11px; color:var(--muted);
+    background:var(--panel-2); border:1px solid var(--term-line); border-radius:6px; padding:5px 9px; cursor:pointer; transition:.15s; }
+  .copy:hover{ color:var(--signal); border-color:var(--signal); }
+  .copy.done{ color:var(--good); border-color:var(--good); }
+
+  /* terminal screenshot */
+  figure{ margin:16px 0; }
+  .term{ background:var(--term-bg); border:1px solid var(--term-line); border-radius:11px; overflow:hidden; box-shadow:var(--shadow); }
+  .term .bar{ display:flex; align-items:center; gap:7px; padding:9px 13px; border-bottom:1px solid var(--term-line); background:color-mix(in srgb,var(--panel) 60%,var(--term-bg)); }
+  .term .bar .d{ width:11px;height:11px;border-radius:50%; }
+  .d.r{ background:#ff5f57;} .d.y{ background:#febc2e;} .d.g{ background:#28c840; }
+  .term .bar .ttl{ margin-left:8px; font-family:var(--mono); font-size:11.5px; color:var(--faint); }
+  .term .body{ padding:14px 16px; font-family:var(--mono); font-size:12.5px; line-height:1.65; overflow-x:auto; color:#c7d3e6; }
+  .term .body .l{ white-space:pre; }
+  .term .body .in{ color:var(--signal); } .term .body .in::before{ content:"$ "; color:var(--faint); }
+  .term .body .ok{ color:var(--good); } .term .body .warn{ color:var(--burn); } .term .body .err{ color:var(--danger); }
+  .term .body .hi{ color:#fff; font-weight:600; } .term .body .dim{ color:var(--faint); }
+  figcaption{ font-size:12px; color:var(--faint); margin-top:8px; font-style:italic; }
+  figcaption code{ font-style:normal; }
+
+  /* menuconfig */
+  .mc{ background:#001b1b; border:1px solid var(--signal-dim); border-radius:10px; padding:14px 16px; font-family:var(--mono); font-size:12.5px; color:#c8f5ef; box-shadow:var(--shadow); overflow-x:auto; }
+  .mc .title{ color:#7ff0e2; border-bottom:1px dashed var(--signal-dim); padding-bottom:7px; margin-bottom:9px; letter-spacing:.02em; }
+  .mc .row{ white-space:pre; }
+  .mc .sel{ background:var(--signal); color:#00201d; }
+  .mc .set{ color:#7ff0e2; } .mc .val{ color:var(--burn); }
+
+  /* under the hood */
+  .hood{ border-left:2px solid var(--signal-dim); background:color-mix(in srgb,var(--signal) 6%,var(--panel)); border-radius:0 10px 10px 0;
+    padding:12px 16px; margin:16px 0; }
+  .hood .t{ font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--signal); margin:0 0 5px; }
+  .hood p{ margin:0; font-size:14px; color:var(--ink); }
+  .hood code{ color:var(--signal); }
+
+  /* eFuse before/after */
+  .fuses{ display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:14px; margin:18px 0; }
+  @media (max-width:620px){ .fuses{ grid-template-columns:1fr; } .fuses .arrow{ transform:rotate(90deg); } }
+  .fusebox{ border:1px solid var(--line); border-radius:11px; background:
+      repeating-linear-gradient(90deg,transparent 0 15px, color-mix(in srgb,var(--line) 35%,transparent) 15px 16px), var(--panel);
+    padding:14px; }
+  .fusebox .cap{ font-family:var(--mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); margin-bottom:11px; }
+  .fusebox.after .cap{ color:var(--burn); }
+  .frow{ display:flex; align-items:center; gap:10px; font-family:var(--mono); font-size:12px; color:var(--muted); margin:7px 0; }
+  .frow b{ color:var(--ink); font-weight:600; }
+  .fbit{ width:14px;height:14px;border-radius:3px; background:var(--line); flex:none; }
+  .fbit.set{ background:var(--burn); box-shadow:0 0 9px color-mix(in srgb,var(--burn) 75%,transparent); }
+  .fslot{ display:inline-flex; gap:4px; }
+  .fslot i{ width:26px;height:13px;border-radius:2px;border:1px solid var(--line); display:inline-block; }
+  .fslot i.on{ background:var(--burn); border-color:var(--burn); }
+  .fuses .arrow{ font-family:var(--mono); color:var(--signal); font-size:22px; text-align:center; }
+
+  /* svg flow */
+  .flowfig{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px; margin:18px 0; overflow-x:auto; box-shadow:var(--shadow); }
+  .flowfig svg{ display:block; width:100%; min-width:640px; height:auto; }
+
+  /* tabs */
+  .tabs{ display:flex; gap:6px; margin:8px 0 4px; flex-wrap:wrap; }
+  .tab{ font-family:var(--mono); font-size:12.5px; color:var(--muted); background:var(--panel); border:1px solid var(--line);
+    padding:8px 14px; border-radius:9px 9px 0 0; cursor:pointer; }
+  .tab.on{ color:var(--ink); background:var(--panel-2); border-color:var(--signal); border-bottom-color:var(--panel-2); }
+  .tabpanel{ display:none; } .tabpanel.on{ display:block; }
+
+  /* stage 3 gate */
+  .gate{ border:1px dashed color-mix(in srgb,var(--danger) 60%,var(--line)); border-radius:var(--radius);
+    background:color-mix(in srgb,var(--danger) 8%,var(--panel)); padding:22px; text-align:center; }
+  .gate h3{ justify-content:center; color:var(--danger); } .gate h3::before{ background:var(--danger); }
+  .gate p{ max-width:56ch; margin:6px auto 16px; color:var(--muted); font-size:14px; }
+  .gate button{ font-family:var(--mono); font-size:13.5px; color:var(--ink); background:var(--panel-2);
+    border:1px solid var(--danger); border-radius:9px; padding:11px 18px; cursor:pointer; transition:.15s; }
+  .gate button:hover{ background:color-mix(in srgb,var(--danger) 18%,var(--panel-2)); }
+  #s3body{ display:none; } #s3body.open{ display:block; animation:reveal .4s ease; }
+  @keyframes reveal{ from{ opacity:0; transform:translateY(6px);} to{ opacity:1; transform:none; } }
+
+  ul.tight{ margin:10px 0; padding-left:20px; } ul.tight li{ margin:5px 0; font-size:14.5px; }
+  ul.tight li code{ color:var(--signal); }
+  .divider{ height:1px; background:var(--line); margin:44px 0 0; border:0; }
+
+  .foot{ margin-top:30px; padding-top:22px; border-top:1px solid var(--line); color:var(--faint); font-size:13px; }
+  .foot a{ font-family:var(--mono); }
+  .foot .links{ display:flex; gap:8px 18px; flex-wrap:wrap; margin-bottom:12px; }
+
+  table.cmp{ width:100%; border-collapse:collapse; margin:2px 0; font-size:13.5px; }
+  table.cmp th, table.cmp td{ border:1px solid var(--line); padding:9px 11px; text-align:left; vertical-align:top; }
+  table.cmp th{ font-family:var(--mono); font-size:11px; letter-spacing:.04em; color:var(--muted); background:var(--panel-2); font-weight:600; }
+  table.cmp td{ color:var(--ink); }
+  table.cmp code{ color:var(--signal); font-size:12px; }
+  table.cmp .y{ color:var(--good); font-weight:600; } table.cmp .n{ color:var(--danger); font-weight:600; } table.cmp .m{ color:var(--burn); font-weight:600; }
+  .wrapx{ overflow-x:auto; margin:12px 0; }
+
+  :focus-visible{ outline:2px solid var(--signal); outline-offset:2px; border-radius:6px; }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">ESP32-C5 · Secure Boot v2 · Hands-on</p>
+  <h1>Setting up Secure Boot, step by step</h1>
+  <p class="lede">Take one board from <b>“runs anything”</b> to <b>cryptographically locked</b> — three stages, real commands, and exactly what each one prints on the wire. Every step is verified against the local <b>ESP-IDF v6.0.1</b> documentation. Stages&nbsp;1–2 are fully reversible; Stage&nbsp;3 burns eFuses <b>forever</b>.</p>
+
+  <div class="banner" role="note">
+    <span class="i">⚠️</span>
+    <p><b>Read before Stage 3.</b> Enabling hardware Secure Boot burns one-time-programmable eFuses. There is no undo, no factory reset. A locked board runs <em>only</em> images signed with your key — lose the key and it can never be updated again. Do Stage 3 on a <b>sacrificial dev board only</b>, never a production device.</p>
+  </div>
+
+  <div class="prereq">
+    <span class="pill">🖥️ <b>ESP-IDF v6.0.1</b> terminal</span>
+    <span class="pill">🎯 <code>idf.py set-target esp32c5</code></span>
+    <span class="pill">🔌 port <b>COM15</b></span>
+    <span class="pill">🧪 a <b>spare</b> ESP32-C5</span>
+    <span class="pill">📁 run from the project folder</span>
+  </div>
+
+  <nav class="rail" aria-label="Stages">
+    <a href="#s1" data-t="s1"><span class="num">1</span><span class="rt">Baseline<small>reversible · see it OFF</small></span></a>
+    <a href="#s2" data-t="s2"><span class="num">2</span><span class="rt">Sign the app<small>reversible · software only</small></span></a>
+    <a href="#s3" data-t="s3"><span class="num">3</span><span class="rt">Lock the hardware<small>irreversible · burns eFuses</small></span></a>
+    <a href="#s4" data-t="s4"><span class="num">4</span><span class="rt">Encrypt flash<small>irreversible · confidentiality</small></span></a>
+    <a href="#recover" data-t="recover"><span class="num">!</span><span class="rt">Recovery<small>what breaks, what doesn't</small></span></a>
+  </nav>
+
+  <!-- STAGE 1 -->
+  <section class="stage" id="s1">
+    <div class="head">
+      <div>
+        <h2><span class="st">Stage 1.</span> Baseline — see an unprotected device</h2>
+        <p class="sub">Goal: flash the demo as-is and confirm it reports Secure Boot <b>DISABLED</b>. No keys, no eFuses.</p>
+      </div>
+      <span class="badge rev">✓ reversible</span>
+    </div>
+
+    <p>The shipped <code>sdkconfig.defaults</code> produces an ordinary, unsigned firmware. Build and flash it, then open the serial monitor:</p>
+
+    <div class="cmd"><button class="copy" data-cmd="idf.py set-target esp32c5&#10;idf.py build&#10;idf.py -p COM15 flash monitor">Copy</button><pre><span class="pr">$</span> idf.py set-target esp32c5     <span class="cm"># once per checkout</span>
+<span class="pr">$</span> idf.py build
+<span class="pr">$</span> idf.py -p COM15 flash monitor  <span class="cm"># exit monitor: Ctrl-]</span></pre></div>
+
+    <figure>
+      <div class="term">
+        <div class="bar"><span class="d r"></span><span class="d y"></span><span class="d g"></span><span class="ttl">COM15 · 115200 · serial monitor</span></div>
+        <div class="body">
+<span class="l dim">I (312) cpu_start: ESP-IDF:  v6.0.1</span>
+<span class="l dim">I (338) main_task: Calling app_main()</span>
+<span class="l">==================================================</span>
+<span class="l">  ESP32-C5 Secure Boot v2 — Runtime Status Report</span>
+<span class="l">==================================================</span>
+<span class="l">  ESP-IDF version : v6.0.1</span>
+<span class="l">  Chip cores      : 1</span>
+<span class="l">  Silicon rev     : v0.1</span>
+<span class="l">--------------------------------------------------</span>
+<span class="l">  Secure Boot v2  : <span class="warn">DISABLED</span> (device will run unsigned code)</span>
+<span class="l">  Flash Encrypt.  : <span class="warn">DISABLED</span></span>
+<span class="l">--------------------------------------------------</span>
+<span class="l warn">W (402) SB_DEMO: Secure Boot is OFF: any image can be flashed and will run.</span>
+<span class="l dim">I (405) SB_DEMO: alive: secure_boot=0 flash_enc=0  (tick 0)</span>
+        </div>
+      </div>
+      <figcaption>Expected output. The demo’s <code>esp_secure_boot_enabled()</code> reads the real eFuse bit — it returns <code>false</code>, so nothing is protecting this board yet.</figcaption>
+    </figure>
+
+    <div class="hood"><p class="t">Under the hood</p><p>The app never trusts a compile-time flag. <code>esp_secure_boot_enabled()</code> queries the actual <code>SECURE_BOOT_EN</code> eFuse over the eFuse controller, so the “DISABLED” you see is ground truth, not a setting.</p></div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- STAGE 2 -->
+  <section class="stage" id="s2">
+    <div class="head">
+      <div>
+        <h2><span class="st">Stage 2.</span> Sign the app — software only</h2>
+        <p class="sub">Goal: rehearse the whole signing workflow <b>without touching eFuses</b>. The app gets a real signature; the hardware stays unlocked.</p>
+      </div>
+      <span class="badge rev">✓ reversible</span>
+    </div>
+
+    <h3>1 — Generate an ECDSA-256 signing key</h3>
+    <p>This private key is the root of trust for every device that will trust it. Keep it secret; it is git-ignored (<code>*.pem</code>) in this project.</p>
+    <div class="cmd"><button class="copy" data-cmd="idf.py secure-generate-signing-key --scheme ecdsa256 secure_boot_signing_key.pem">Copy</button><pre><span class="pr">$</span> idf.py secure-generate-signing-key --scheme ecdsa256 secure_boot_signing_key.pem</pre></div>
+    <figure>
+      <div class="term">
+        <div class="bar"><span class="d r"></span><span class="d y"></span><span class="d g"></span><span class="ttl">key generation</span></div>
+        <div class="body">
+<span class="l in">idf.py secure-generate-signing-key --scheme ecdsa256 secure_boot_signing_key.pem</span>
+<span class="l">Generating ECDSA (NISTP256) secure boot signing key...</span>
+<span class="l ok">ECDSA NISTP256 private key in PEM format written to secure_boot_signing_key.pem</span>
+        </div>
+      </div>
+      <figcaption>The C5 also accepts <code>--scheme ecdsa384</code> (stronger) or <code>rsa3072</code>. <code>ecdsa256</code> is the fast, recommended default this demo uses.</figcaption>
+    </figure>
+
+    <h3>2 — Turn on signed-app verification (no eFuse burn)</h3>
+    <p>Uncomment the <b>Stage 2</b> block in <code>sdkconfig.defaults</code>, or set it in <code>menuconfig</code> → <em>Security features</em>. Either way these three keys are what matter:</p>
+    <div class="cmd"><button class="copy" data-cmd="CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=y&#10;CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME=y&#10;CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_256_BITS=y&#10;CONFIG_SECURE_BOOT_SIGNING_KEY=&quot;secure_boot_signing_key.pem&quot;">Copy</button><pre>CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT=y
+CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME=y
+CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_256_BITS=y
+CONFIG_SECURE_BOOT_SIGNING_KEY=<span class="pr">"secure_boot_signing_key.pem"</span></pre></div>
+    <div class="cmd"><button class="copy" data-cmd="idf.py fullclean &amp;&amp; idf.py build&#10;idf.py -p COM15 flash monitor">Copy</button><pre><span class="pr">$</span> idf.py fullclean &amp;&amp; idf.py build   <span class="cm"># fullclean: re-apply the new defaults</span>
+<span class="pr">$</span> idf.py -p COM15 flash monitor</pre></div>
+
+    <h3>3 — Inspect the signature that was appended</h3>
+    <div class="cmd"><button class="copy" data-cmd="espsecure signature-info-v2 build/secure_boot_demo.bin">Copy</button><pre><span class="pr">$</span> espsecure signature-info-v2 build/secure_boot_demo.bin</pre></div>
+    <figure>
+      <div class="term">
+        <div class="bar"><span class="d r"></span><span class="d y"></span><span class="d g"></span><span class="ttl">signature-info-v2 · representative</span></div>
+        <div class="body">
+<span class="l in">espsecure signature-info-v2 build/secure_boot_demo.bin</span>
+<span class="l dim">Image version    : 2</span>
+<span class="l">Signature block 0</span>
+<span class="l">  Scheme         : <span class="hi">ECDSA (NISTP256)</span></span>
+<span class="l">  Validity       : <span class="ok">Valid</span></span>
+<span class="l">  Public key SHA-256 digest:</span>
+<span class="l dim">    3f a1 9c 4e ... 8b d0   (32 bytes → this is what eFuse will store)</span>
+        </div>
+      </div>
+      <figcaption>The monitor still prints <b>Secure Boot v2 : DISABLED</b> — signing an app is <em>not</em> the same as locking the hardware. Nothing was burned; roll back by removing the config keys.</figcaption>
+    </figure>
+
+    <div class="hood"><p class="t">Under the hood</p><p>A 1216-byte signature block is now appended to the app: the public key, an ECDSA-P256 signature over the image hash, and a CRC. A running app could verify an OTA against it — but with no eFuse digest, the <em>hardware</em> still boots anything.</p></div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- STAGE 3 -->
+  <section class="stage" id="s3">
+    <div class="head">
+      <div>
+        <h2><span class="st">Stage 3.</span> Lock the hardware — Secure Boot v2</h2>
+        <p class="sub">Goal: burn the eFuses so the ROM enforces the chain of trust on every boot. <b>This cannot be undone.</b></p>
+      </div>
+      <span class="badge irr">✖ irreversible</span>
+    </div>
+
+    <div class="gate" id="gate">
+      <h3>One-way door ahead</h3>
+      <p>The steps below burn <code>SECURE_BOOT_EN</code> and a key digest permanently. Only continue on a board you are willing to lock forever, with your signing key safely backed up.</p>
+      <button id="reveal" type="button">I’m on a spare board — reveal Stage 3 →</button>
+    </div>
+
+    <div id="s3body">
+      <div class="tabs" role="tablist">
+        <button class="tab on" data-tab="idf" role="tab">Path A · IDF-integrated (recommended)</button>
+        <button class="tab" data-tab="man" role="tab">Path B · Manual (espefuse)</button>
+      </div>
+
+      <!-- PATH A -->
+      <div class="tabpanel on" id="tab-idf" role="tabpanel">
+        <h3>1 — Configure Security features in menuconfig</h3>
+        <div class="cmd"><button class="copy" data-cmd="idf.py menuconfig   # → Security features">Copy</button><pre><span class="pr">$</span> idf.py menuconfig   <span class="cm"># → Security features</span></pre></div>
+        <figure>
+          <div class="mc">
+            <div class="row title">Security features</div>
+            <div class="row"><span class="set">[*]</span> Enable hardware Secure Boot in bootloader</div>
+            <div class="row">        App Signing Scheme (<span class="val">ECDSA (v2)</span>)  ---&gt;</div>
+            <div class="row"><span class="sel">        ECDSA key size (256-bit key, NISTP256 curve)  ---&gt;</span></div>
+            <div class="row">    (<span class="val">secure_boot_signing_key.pem</span>) Secure boot private signing key</div>
+            <div class="row">        UART ROM download mode (<span class="val">Permanently switch to Secure mode</span>)  ---&gt;</div>
+            <div class="row"><span class="set">[ ]</span> Enable flash encryption on boot   <span style="color:var(--faint)"># recommended companion — see below</span></div>
+          </div>
+          <figcaption>On the C5 the scheme auto-selects <b>ECDSA (v2)</b>. UART download mode defaults to <em>Permanently switch to Secure mode</em>; production boards use <em>Permanently disabled</em>.</figcaption>
+        </figure>
+
+        <h3>2 — Build the signed bootloader, then flash it by hand</h3>
+        <p>Secure Boot bootloaders are <b>not</b> flashed by <code>idf.py flash</code> — the build prints the exact <code>esptool write-flash</code> command for you to run.</p>
+        <div class="cmd"><button class="copy" data-cmd="idf.py bootloader">Copy</button><pre><span class="pr">$</span> idf.py bootloader</pre></div>
+        <figure>
+          <div class="term">
+            <div class="bar"><span class="d r"></span><span class="d y"></span><span class="d g"></span><span class="ttl">idf.py bootloader · representative</span></div>
+            <div class="body">
+<span class="l in">idf.py bootloader</span>
+<span class="l dim">... Bootloader built. Secure Boot signing enabled.</span>
+<span class="l warn">==================== Secure Boot ====================</span>
+<span class="l">Bootloader is signed. Flash it MANUALLY with:</span>
+<span class="l hi">esptool --chip esp32c5 -p COM15 -b 460800 write-flash 0x2000 \</span>
+<span class="l hi">        build/bootloader/bootloader.bin</span>
+<span class="l warn">====================================================</span>
+            </div>
+          </div>
+          <figcaption>Copy and run the printed command yourself. On the C5 the bootloader lives at offset <code>0x2000</code> (the partition table sits at <code>0xD000</code> to leave the larger signed bootloader room).</figcaption>
+        </figure>
+
+        <h3>3 — Flash the partition table + app, then let it boot</h3>
+        <div class="cmd"><button class="copy" data-cmd="idf.py -p COM15 flash monitor">Copy</button><pre><span class="pr">$</span> idf.py -p COM15 flash monitor   <span class="cm"># flashes partition-table + app, NOT the bootloader</span></pre></div>
+        <p>On the <b>first boot</b>, the second-stage bootloader verifies the images, then burns the eFuses. Watch it happen:</p>
+        <figure>
+          <div class="term">
+            <div class="bar"><span class="d r"></span><span class="d y"></span><span class="d g"></span><span class="ttl">first boot · burns eFuses · representative</span></div>
+            <div class="body">
+<span class="l dim">I (45) boot: ESP-IDF v6.0.1 2nd stage bootloader</span>
+<span class="l">I (52) secure_boot_v2: Verifying with ECDSA-P256...</span>
+<span class="l ok">I (58) secure_boot_v2: Signature verified successfully!</span>
+<span class="l warn">I (61) secure_boot: Enabling Secure Boot for the first time</span>
+<span class="l warn">I (63) secure_boot: Burning key digest → SECURE_BOOT_DIGEST0</span>
+<span class="l warn">I (66) secure_boot: Burning SECURE_BOOT_EN eFuse...</span>
+<span class="l ok">I (70) secure_boot: Secure Boot enabled permanently</span>
+<span class="l dim">...</span>
+<span class="l">  Secure Boot v2  : <span class="ok">ENABLED</span>  (eFuse burned, irreversible)</span>
+            </div>
+          </div>
+          <figcaption>If the board is reset mid-burn, it simply resumes on the next boot. Secure Boot is only armed <em>after</em> a valid partition table and app are present — a deliberate safety net.</figcaption>
+        </figure>
+
+        <h3>4 — Verify what got burned</h3>
+        <div class="cmd"><button class="copy" data-cmd="idf.py -p COM15 efuse-summary">Copy</button><pre><span class="pr">$</span> idf.py -p COM15 efuse-summary</pre></div>
+        <figure>
+          <div class="term">
+            <div class="bar"><span class="d r"></span><span class="d y"></span><span class="d g"></span><span class="ttl">efuse-summary · representative</span></div>
+            <div class="body">
+<span class="l in">idf.py -p COM15 efuse-summary</span>
+<span class="l">Secure boot enabled: <span class="ok">SECURE_BOOT_EN = True</span>  R/W (0b1)</span>
+<span class="l">Key0 purpose:        <span class="hi">KEY_PURPOSE_0 = SECURE_BOOT_DIGEST0</span></span>
+<span class="l">BLOCK_KEY0:          <span class="dim">3f a1 9c 4e ... 8b d0  (public-key digest)</span></span>
+<span class="l">SECURE_BOOT_KEY_REVOKE0/1/2: <span class="dim">False / False / False</span></span>
+<span class="l">Disable UART download: <span class="dim">DIS_DOWNLOAD... (per your menuconfig choice)</span></span>
+            </div>
+          </div>
+          <figcaption>Bootloader/eFuse log wording varies slightly by IDF version; the demo-app line <code>Secure Boot v2 : ENABLED</code> is exact to this project.</figcaption>
+        </figure>
+      </div>
+
+      <!-- PATH B -->
+      <div class="tabpanel" id="tab-man" role="tabpanel">
+        <p>The same result, done explicitly with <code>espsecure</code> + <code>espefuse</code> (useful for external provisioning / a signing server). Order matters.</p>
+        <div class="cmd"><button class="copy" data-cmd="espsecure generate-signing-key --version 2 --scheme ecdsa256 secure_boot_signing_key.pem">Copy</button><pre><span class="pr">$</span> espsecure generate-signing-key --version 2 --scheme ecdsa256 secure_boot_signing_key.pem</pre></div>
+        <div class="cmd"><button class="copy" data-cmd="espsecure digest-sbv2-public-key --keyfile secure_boot_signing_key.pem --output digest.bin">Copy</button><pre><span class="pr">$</span> espsecure digest-sbv2-public-key --keyfile secure_boot_signing_key.pem --output digest.bin</pre></div>
+        <div class="cmd"><button class="copy" data-cmd="espefuse --port COM15 --chip esp32c5 burn-key BLOCK_KEY0 digest.bin SECURE_BOOT_DIGEST0">Copy</button><pre><span class="pr">$</span> espefuse --port COM15 --chip esp32c5 burn-key BLOCK_KEY0 digest.bin SECURE_BOOT_DIGEST0</pre></div>
+        <div class="cmd"><button class="copy" data-cmd="espefuse --port COM15 --chip esp32c5 burn-efuse SECURE_BOOT_EN">Copy</button><pre><span class="pr">$</span> espefuse --port COM15 --chip esp32c5 burn-efuse SECURE_BOOT_EN</pre></div>
+        <ul class="tight">
+          <li><code>BLOCK_KEY0</code> is any free key block (0–5); the C5 has <b>3</b> digest slots for rotation/revocation.</li>
+          <li>Using <b>ECDSA-P384</b> instead? Also burn <code>SECURE_BOOT_SHA384_EN</code> (image hashing moves to SHA-384).</li>
+          <li>Production hardening: also burn <code>DIS_PAD_JTAG</code>, <code>DIS_USB_JTAG</code>, <code>DIS_DIRECT_BOOT</code>, and <code>SECURE_BOOT_AGGRESSIVE_REVOKE</code>.</li>
+        </ul>
+      </div>
+
+      <h3>What the burn actually changed</h3>
+      <div class="fuses">
+        <div class="fusebox before">
+          <div class="cap">eFuse — before</div>
+          <div class="frow"><span class="fbit"></span><b>SECURE_BOOT_EN</b> = 0</div>
+          <div class="frow">digests <span class="fslot"><i></i><i></i><i></i></span></div>
+          <div class="frow" style="color:var(--faint)">ROM runs any bootloader</div>
+        </div>
+        <div class="arrow">➜</div>
+        <div class="fusebox after">
+          <div class="cap">eFuse — after (permanent)</div>
+          <div class="frow"><span class="fbit set"></span><b>SECURE_BOOT_EN</b> = 1</div>
+          <div class="frow">digests <span class="fslot"><i class="on"></i><i></i><i></i></span> slot&nbsp;0 filled</div>
+          <div class="frow" style="color:var(--burn)">ROM verifies every image</div>
+        </div>
+      </div>
+
+      <h3>The whole pipeline, as data flow</h3>
+      <div class="flowfig">
+        <svg viewBox="0 0 760 220" role="img" aria-label="Signing key plus sources build into signed images, flashed to the board, which burns eFuses on first boot to become locked.">
+          <defs>
+            <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L7,3 L0,6 Z" fill="var(--signal)"></path>
+            </marker>
+            <style>
+              .fkbx{ fill:var(--panel-2); stroke:var(--line); }
+              .fkbxk{ fill:color-mix(in srgb,var(--burn) 16%,var(--panel-2)); stroke:var(--burn); }
+              .fkbxl{ fill:color-mix(in srgb,var(--signal) 14%,var(--panel-2)); stroke:var(--signal); }
+              .fkt{ fill:var(--ink); font:600 12px var(--mono); }
+              .fkts{ fill:var(--muted); font:11px var(--mono); }
+              .fkln{ stroke:var(--signal); stroke-width:1.6; fill:none; marker-end:url(#ah); }
+            </style>
+          </defs>
+          <rect class="fkbxk" x="8" y="20" width="150" height="40" rx="7"></rect>
+          <text class="fkt" x="24" y="38">signing_key.pem</text>
+          <text class="fkts" x="24" y="52">private · secret</text>
+
+          <rect class="fkbx" x="8" y="90" width="150" height="52" rx="7"></rect>
+          <text class="fkts" x="24" y="110">.c · sdkconfig</text>
+          <text class="fkts" x="24" y="126">partitions.csv</text>
+
+          <rect class="fkbx" x="230" y="66" width="120" height="46" rx="7"></rect>
+          <text class="fkt" x="252" y="86">idf.py build</text>
+          <text class="fkts" x="252" y="101">+ bootloader</text>
+
+          <rect class="fkbxl" x="420" y="40" width="150" height="40" rx="7"></rect>
+          <text class="fkt" x="436" y="58">bootloader.bin</text>
+          <text class="fkts" x="436" y="72">signed</text>
+          <rect class="fkbxl" x="420" y="98" width="150" height="40" rx="7"></rect>
+          <text class="fkt" x="436" y="116">app.bin</text>
+          <text class="fkts" x="436" y="130">signed · +sig block</text>
+
+          <rect class="fkbx" x="632" y="40" width="118" height="46" rx="7"></rect>
+          <text class="fkt" x="648" y="60">flash + reset</text>
+          <text class="fkts" x="648" y="75">esptool / idf</text>
+
+          <rect class="fkbxk" x="612" y="150" width="140" height="52" rx="7"></rect>
+          <text class="fkt" x="628" y="172">LOCKED device</text>
+          <text class="fkts" x="628" y="188">SECURE_BOOT_EN=1</text>
+
+          <path class="fkln" d="M158,40 L228,84"></path>
+          <path class="fkln" d="M158,116 L228,92"></path>
+          <path class="fkln" d="M350,80 L418,60"></path>
+          <path class="fkln" d="M350,96 L418,116"></path>
+          <path class="fkln" d="M570,60 L630,63"></path>
+          <path class="fkln" d="M570,118 L630,72"></path>
+          <path class="fkln" d="M690,86 L685,148"></path>
+          <text class="fkts" x="576" y="120">1st boot burns eFuses</text>
+        </svg>
+      </div>
+
+      <div class="hood"><p class="t">Recommended companion — Flash Encryption</p><p>Secure Boot proves <b>authenticity</b> (only your code runs). It does <em>not</em> stop someone reading firmware/keys out of flash. For production, enable <b>Flash Encryption</b> in the same menuconfig (mode <em>Development</em> while iterating, <em>Release</em> for the field) so the flash is also confidential — together they close the flash-swap (TOCTOU) gap.</p></div>
+
+      <h3>Life after the lock</h3>
+      <ul class="tight">
+        <li>Every future bootloader/app/OTA <b>must</b> be signed with a key matching the burned digest.</li>
+        <li>The <b>USB-OTG ROM download stack is disabled</b>; JTAG and UART download are locked per your menuconfig choices.</li>
+        <li>Further eFuse read-protection is disabled by default (to keep the public-key digest readable).</li>
+        <li><b>Lose the signing key → the board can never be updated again.</b> Back it up offline; for production, generate it on an HSM.</li>
+      </ul>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- STAGE 4 -->
+  <section class="stage" id="s4">
+    <div class="head">
+      <div>
+        <h2><span class="st">Stage 4.</span> Encrypt the flash — the production companion</h2>
+        <p class="sub">Goal: make the flash <b>confidential</b>, not just authentic. Secure Boot stops <em>tampering</em>; Flash Encryption stops <em>readout</em>. Production wants both.</p>
+      </div>
+      <span class="badge irr">✖ irreversible</span>
+    </div>
+
+    <div class="banner" role="note">
+      <span class="i">⚠️</span>
+      <p><b>Also a one-way door.</b> Enabling Flash Encryption burns eFuses and generates an <b>AES-XTS key locked inside the chip</b> (read-protected, it never leaves). Enable it in the <em>same</em> menuconfig pass as Stage 3. Spare board only.</p>
+    </div>
+
+    <p>Flash Encryption transparently encrypts the bootloader, app, and every partition marked <code>encrypted</code> with a per-device AES-XTS key. Firmware is flashed as plaintext and encrypted <b>in place on the first boot</b>; from then on a raw flash dump yields only ciphertext.</p>
+
+    <h3>Development vs Release — choose deliberately</h3>
+    <div class="wrapx"><table class="cmp">
+      <thead><tr><th>&nbsp;</th><th>Development <span style="font-weight:400">(default)</span></th><th>Release <span style="font-weight:400">(production)</span></th></tr></thead>
+      <tbody>
+        <tr><td>Re-flash plaintext over serial?</td><td class="y">Yes — <code>idf.py encrypted-flash</code></td><td class="n">No — OTA only</td></tr>
+        <tr><td><code>SPI_BOOT_CRYPT_CNT</code></td><td>not write-protected</td><td>write-protected</td></tr>
+        <tr><td><code>DIS_DOWNLOAD_MANUAL_ENCRYPT</code></td><td>not burned</td><td>burned</td></tr>
+        <tr><td>Plaintext recoverable by an attacker?</td><td class="m">Yes, indirectly</td><td class="y">No — truly confidential</td></tr>
+        <tr><td>Use it for</td><td>iterating on a dev board</td><td>manufacturing / field devices</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>1 — Enable it alongside Secure Boot in menuconfig</h3>
+    <figure>
+      <div class="mc">
+        <div class="row title">Security features</div>
+        <div class="row"><span class="set">[*]</span> Enable hardware Secure Boot in bootloader   <span style="color:var(--faint)"># from Stage 3</span></div>
+        <div class="row"><span class="set">[*]</span> Enable flash encryption on boot</div>
+        <div class="row sel">        Flash encryption mode (Development (NOT SECURE))  ---&gt;</div>
+        <div class="row">        Size of generated XTS-AES key (AES-128 (256-bit key))  ---&gt;</div>
+      </div>
+      <figcaption>Keep it on <b>Development</b> while iterating. Switch to <b>Release</b> only for the final production build — that choice is itself irreversible once burned.</figcaption>
+    </figure>
+
+    <h3>2 — Flash plaintext once; the first boot encrypts in place</h3>
+    <div class="cmd"><button class="copy" data-cmd="idf.py -p COM15 flash monitor">Copy</button><pre><span class="pr">$</span> idf.py -p COM15 flash monitor</pre></div>
+    <figure>
+      <div class="term">
+        <div class="bar"><span class="d r"></span><span class="d y"></span><span class="d g"></span><span class="ttl">first boot · encrypts in place · representative</span></div>
+        <div class="body">
+<span class="l dim">I (44) boot: ESP-IDF v6.0.1 2nd stage bootloader</span>
+<span class="l warn">I (60) flash_encrypt: Generating new flash encryption key...</span>
+<span class="l warn">I (66) flash_encrypt: Read/write-protecting new AES-XTS key in eFuse...</span>
+<span class="l">I (72) flash_encrypt: Encrypting partition 0 at 0x2000 (bootloader)...</span>
+<span class="l">I (410) flash_encrypt: Encrypting partition 2 at 0x20000 (app)...</span>
+<span class="l ok">I (980) flash_encrypt: Flash encryption completed</span>
+<span class="l dim">I (985) boot: Resetting with flash encryption enabled...</span>
+<span class="l dim">...</span>
+<span class="l">  Flash Encrypt.  : <span class="ok">ENABLED</span></span>
+<span class="l">  Flash Enc. mode : <span class="warn">DEVELOPMENT (re-flashable, NOT for production)</span></span>
+        </div>
+      </div>
+      <figcaption>The <code>SPI_BOOT_CRYPT_CNT</code> eFuse now has an odd number of bits set — the chip expects ciphertext in every encrypted partition. The demo’s <code>Flash Enc. mode</code> line is exact to this project’s <code>main.c</code>.</figcaption>
+    </figure>
+
+    <h3>3 — Re-flashing after encryption</h3>
+    <p>In <b>development</b> mode, encrypt-and-flash in one step (plain <code>idf.py flash</code> would write unusable plaintext):</p>
+    <div class="cmd"><button class="copy" data-cmd="idf.py -p COM15 encrypted-flash monitor">Copy</button><pre><span class="pr">$</span> idf.py -p COM15 encrypted-flash monitor   <span class="cm"># encrypts, then flashes</span></pre></div>
+    <p>In <b>release</b> mode the UART bootloader can no longer encrypt — new plaintext firmware arrives <b>only via OTA</b>, which encrypts each image before writing it to flash.</p>
+
+    <div class="hood"><p class="t">Do not interrupt power</p><p>During the first-boot encryption pass, cutting power corrupts the flash and you must re-flash plaintext data and let it encrypt again (this does <em>not</em> count toward any re-flash limit). Let it finish.</p></div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- RECOVERY -->
+  <section class="stage" id="recover">
+    <div class="head">
+      <div>
+        <h2><span class="st">Reality check.</span> Recovering a “bricked” board</h2>
+        <p class="sub">“Bricked” usually means <b>can’t update</b>, not <b>dead</b> — a locked board keeps running its last valid signed image. What you can recover comes down to two questions: do you still have the key, and is a download path still open?</p>
+      </div>
+    </div>
+
+    <div class="wrapx"><table class="cmp">
+      <thead><tr><th>What went wrong</th><th>Recoverable?</th><th>How</th></tr></thead>
+      <tbody>
+        <tr><td>Flashed an unsigned / wrong-key app (Secure Boot on)</td><td class="y">Yes *</td><td>Re-flash a correctly-signed image with the <em>original</em> key. <span style="color:var(--faint)">* if serial download is still open</span></td></tr>
+        <tr><td>Lost the signing key (Secure Boot on)</td><td class="n">No (updates)</td><td>The board keeps running its current signed app, but no new firmware can ever be accepted</td></tr>
+        <tr><td>Plaintext flashed to an encrypted device — <b>dev</b> mode</td><td class="y">Yes</td><td><code>idf.py encrypted-flash</code>, or disable flash encryption in menuconfig and re-flash</td></tr>
+        <tr><td>Plaintext flashed — <b>release</b> mode</td><td class="m">OTA only</td><td>No serial plaintext path remains; needs a still-working app to OTA a fixed image</td></tr>
+        <tr><td>Power lost during the first-boot encryption pass</td><td class="y">Yes (dev)</td><td>Re-flash unencrypted data again; this does not count toward the re-flash limit</td></tr>
+        <tr><td>UART/USB download <b>permanently disabled</b> + a bad image</td><td class="n">No</td><td>No serial recovery path is left — this is the genuinely unrecoverable case</td></tr>
+      </tbody>
+    </table></div>
+
+    <figure>
+      <div class="term">
+        <div class="bar"><span class="d r"></span><span class="d y"></span><span class="d g"></span><span class="ttl">flash-encryption soft-brick · representative</span></div>
+        <div class="body">
+<span class="l dim">rst:0x3 (RTC_SW_SYS_RST)</span>
+<span class="l err">flash read err, 1000</span>
+<span class="l err">ets_main.c 371</span>
+<span class="l dim">[ ... device reboots continuously ... ]</span>
+        </div>
+      </div>
+      <figcaption>Plaintext flashed onto an encrypted device: the ROM reads ciphertext-expecting flash as garbage and loops. In <b>development</b> mode, recover with <code>idf.py encrypted-flash</code>. The error may instead read <code>invalid header: 0xXXXXXXXX</code>.</figcaption>
+    </figure>
+
+    <div class="hood"><p class="t">The two genuinely unrecoverable combinations</p><p><b>Lost key</b> → you can never sign a new image, so the board is frozen on its current firmware forever. <b>Download mode permanently disabled + a bad image</b> → no serial path remains to push a corrected image. Everything else has a way back.</p></div>
+
+    <h3>Prevention checklist — before you touch Stage 3 or 4</h3>
+    <ul class="tight">
+      <li><b>Back up the signing key offline</b> (two air-gapped copies). It is the one thing that can never be regenerated.</li>
+      <li>While iterating, stay in Flash Encryption <b>Development</b> mode and leave <b>UART download</b> enabled — both keep a recovery path open.</li>
+      <li>Use a <b>“reflashable” Secure Boot digest</b> if you may need to re-flash a signed bootloader on an encrypted device.</li>
+      <li>Provision <b>multiple key digests</b> (the C5 has 3 slots) so a leaked key can be <em>revoked</em> instead of bricking the fleet.</li>
+      <li><b>Never interrupt power</b> during the first-boot Secure Boot / encryption pass.</li>
+      <li>Prove the whole flow on a <b>sacrificial board</b> before touching anything you care about.</li>
+    </ul>
+  </section>
+
+  <div class="foot">
+    <div class="links">
+      <a href="./SECURE_BOOT_DEEP_DIVE.md">📖 SECURE_BOOT_DEEP_DIVE.md</a>
+      <a href="./README.md">🧪 README — theory + lab</a>
+      <a href="./secure-boot-flow.html">▶ Animated chain-of-trust</a>
+    </div>
+    Commands and eFuse names verified against the local ESP-IDF v6.0.1 security documentation
+    (<code>secure-boot-v2.rst</code>, <code>security-features-enablement-workflows.rst</code>). Bootloader and
+    <code>efuse-summary</code> log lines are representative — exact wording varies by IDF version; confirm on your
+    board with <code>idf.py efuse-summary</code>. This page never runs anything.
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  // copy buttons
+  document.querySelectorAll(".copy").forEach(function(b){
+    b.addEventListener("click", function(){
+      var txt = (b.getAttribute("data-cmd") || "").replace(/ /g," ");
+      var done = function(){ var o=b.textContent; b.textContent="Copied ✓"; b.classList.add("done");
+        setTimeout(function(){ b.textContent=o; b.classList.remove("done"); },1400); };
+      if (navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done, fallback); }
+      else fallback();
+      function fallback(){
+        var ta=document.createElement("textarea"); ta.value=txt; ta.style.position="fixed"; ta.style.opacity="0";
+        document.body.appendChild(ta); ta.select();
+        try{ document.execCommand("copy"); done(); }catch(e){}
+        document.body.removeChild(ta);
+      }
+    });
+  });
+
+  // stage 3 reveal gate
+  var reveal = document.getElementById("reveal");
+  if (reveal) reveal.addEventListener("click", function(){
+    document.getElementById("s3body").classList.add("open");
+    document.getElementById("gate").style.display="none";
+    document.getElementById("s3body").scrollIntoView({block:"nearest"});
+  });
+
+  // tabs
+  document.querySelectorAll(".tab").forEach(function(t){
+    t.addEventListener("click", function(){
+      document.querySelectorAll(".tab").forEach(function(x){ x.classList.remove("on"); });
+      document.querySelectorAll(".tabpanel").forEach(function(x){ x.classList.remove("on"); });
+      t.classList.add("on");
+      document.getElementById("tab-" + t.getAttribute("data-tab")).classList.add("on");
+    });
+  });
+
+  // scroll-spy for the rail
+  var links = {}; document.querySelectorAll(".rail a").forEach(function(a){ links[a.getAttribute("data-t")] = a; });
+  var obs = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if (en.isIntersecting){
+        Object.keys(links).forEach(function(k){ links[k].classList.remove("on"); });
+        if (links[en.target.id]) links[en.target.id].classList.add("on");
+      }
+    });
+  }, { rootMargin:"-45% 0px -50% 0px" });
+  ["s1","s2","s3","s4","recover"].forEach(function(id){ var el=document.getElementById(id); if(el) obs.observe(el); });
+})();
+</script>

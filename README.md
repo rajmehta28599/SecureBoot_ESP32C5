@@ -221,6 +221,10 @@ access-controlled key and (b) you're on a board you accept losing.
 
 ## Part 2 — Hands-On Lab
 
+> 🧪 **Prefer a visual, click-through version?** [`secure-boot-setup.html`](./secure-boot-setup.html)
+> walks these same three stages with copy-ready commands, simulated serial output, a menuconfig
+> screen, and an eFuse before/after. The steps below are the text reference.
+
 ### 🚪 The one-way door — READ THIS FIRST
 
 - **`idf.py efuse-*` and enabling `CONFIG_SECURE_BOOT` burn eFuses. eFuses are
@@ -368,6 +372,7 @@ bootloader, the bootloader verifies the app, and any image not signed with
 | `sdkconfig.defaults` | Stage 1 baseline + commented Stage 2/3 option blocks |
 | `SECURE_BOOT_DEEP_DIVE.md` | One-stop deep dive — boot flow, chip matrix, schemes, eFuses, per-file map, threat model, glossary |
 | `secure-boot-flow.html` | Interactive, animated diagram of the boot-time chain of trust (open in a browser) |
+| `secure-boot-setup.html` | Interactive hands-on setup lab — staged commands, simulated serial/menuconfig output, eFuse before/after |
 | `CLAUDE.md` | Working rules for Claude Code / contributors in this folder |
 
 ## Key-safety rules

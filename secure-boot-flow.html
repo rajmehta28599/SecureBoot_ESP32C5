@@ -1,0 +1,472 @@
+<title>ESP32-C5 Secure Boot — Chain of Trust</title>
+<style>
+  :root {
+    --ground:#0a0f1a; --panel:#111a2b; --panel-2:#16223a; --raise:#1b2942;
+    --ink:#dfe7f2; --muted:#8a9bb5; --faint:#5f7290; --line:#24344f;
+    --signal:#34c9be; --signal-dim:#1c6b64; --burn:#f2a13e; --danger:#eb5a6a;
+    --ink-on-accent:#06121a;
+    --radius:14px; --gap:clamp(14px,2.4vw,26px);
+    --mono:ui-monospace,"Cascadia Code","SFMono-Regular","Segoe UI Mono",Consolas,monospace;
+    --sans:system-ui,"Segoe UI",Roboto,-apple-system,sans-serif;
+    --shadow:0 18px 50px -24px rgba(0,0,0,.7);
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --ground:#eef1f7; --panel:#ffffff; --panel-2:#f4f7fc; --raise:#eaf0f9;
+      --ink:#14203a; --muted:#55668a; --faint:#8493ab; --line:#d3dcea;
+      --signal:#0f9e91; --signal-dim:#9fded7; --burn:#c9781a; --danger:#d23b52;
+      --ink-on-accent:#ffffff; --shadow:0 16px 40px -26px rgba(30,50,90,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0a0f1a; --panel:#111a2b; --panel-2:#16223a; --raise:#1b2942;
+    --ink:#dfe7f2; --muted:#8a9bb5; --faint:#5f7290; --line:#24344f;
+    --signal:#34c9be; --signal-dim:#1c6b64; --burn:#f2a13e; --danger:#eb5a6a;
+    --ink-on-accent:#06121a; --shadow:0 18px 50px -24px rgba(0,0,0,.7);
+  }
+  :root[data-theme="light"]{
+    --ground:#eef1f7; --panel:#ffffff; --panel-2:#f4f7fc; --raise:#eaf0f9;
+    --ink:#14203a; --muted:#55668a; --faint:#8493ab; --line:#d3dcea;
+    --signal:#0f9e91; --signal-dim:#9fded7; --burn:#c9781a; --danger:#d23b52;
+    --ink-on-accent:#ffffff; --shadow:0 16px 40px -26px rgba(30,50,90,.4);
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:
+      radial-gradient(1200px 600px at 78% -10%, color-mix(in srgb, var(--signal) 9%, transparent), transparent 60%),
+      var(--ground);
+    color:var(--ink); font-family:var(--sans); line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:1080px; margin:0 auto; padding:clamp(20px,4vw,52px) clamp(16px,4vw,40px) 64px; }
+
+  /* ---- header ---- */
+  .eyebrow {
+    font-family:var(--mono); font-size:12.5px; letter-spacing:.22em; text-transform:uppercase;
+    color:var(--signal); margin:0 0 12px; display:flex; align-items:center; gap:10px;
+  }
+  .eyebrow::before{ content:""; width:26px; height:1px; background:var(--signal); opacity:.7; }
+  h1 {
+    font-family:var(--mono); font-weight:650; letter-spacing:-.01em; text-wrap:balance;
+    font-size:clamp(28px,5vw,46px); line-height:1.04; margin:0 0 14px;
+  }
+  .lede { max-width:64ch; color:var(--muted); font-size:clamp(15px,1.7vw,17px); margin:0; }
+  .lede b { color:var(--ink); font-weight:600; }
+
+  /* ---- controls ---- */
+  .controls {
+    display:flex; flex-wrap:wrap; align-items:center; gap:10px;
+    margin:26px 0 22px; padding:12px; background:var(--panel); border:1px solid var(--line);
+    border-radius:var(--radius);
+  }
+  button, .switch, select { font-family:var(--mono); font-size:13.5px; }
+  .btn {
+    appearance:none; border:1px solid var(--line); background:var(--panel-2); color:var(--ink);
+    padding:9px 15px; border-radius:9px; cursor:pointer; display:inline-flex; align-items:center; gap:8px;
+    transition:transform .12s ease, background .18s ease, border-color .18s ease;
+  }
+  .btn:hover { border-color:var(--signal); }
+  .btn:active { transform:translateY(1px); }
+  .btn.primary { background:var(--signal); color:var(--ink-on-accent); border-color:var(--signal); font-weight:650; }
+  .btn.primary:hover { filter:brightness(1.06); }
+  .btn[disabled]{ opacity:.4; cursor:not-allowed; }
+  .btn .ico{ font-size:11px; }
+  .spacer { flex:1 1 auto; min-width:8px; }
+  .switch {
+    display:inline-flex; align-items:center; gap:10px; color:var(--muted); cursor:pointer;
+    padding:8px 12px; border:1px solid var(--line); border-radius:9px; background:var(--panel-2);
+    user-select:none;
+  }
+  .switch input{ position:absolute; opacity:0; width:0; height:0; }
+  .track{ width:38px; height:20px; border-radius:20px; background:var(--line); position:relative; transition:background .2s; flex:none; }
+  .track::after{ content:""; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%;
+    background:var(--ink); transition:transform .2s ease; }
+  .switch input:checked + .track{ background:var(--danger); }
+  .switch input:checked + .track::after{ transform:translateX(18px); background:#fff; }
+  .switch input:checked ~ .lbl{ color:var(--danger); }
+  .switch:focus-within{ outline:2px solid var(--signal); outline-offset:2px; }
+  select.speed{ background:var(--panel-2); color:var(--ink); border:1px solid var(--line); border-radius:9px; padding:8px 10px; cursor:pointer; }
+
+  /* ---- stage ---- */
+  .stage-wrap{ background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+  .stage{ overflow-x:auto; padding:30px 24px 8px; }
+  .pipeline{ display:flex; align-items:stretch; gap:0; min-width:880px; }
+
+  .node{
+    position:relative; flex:1 1 0; min-width:190px; background:var(--panel-2); border:1px solid var(--line);
+    border-radius:12px; padding:15px 15px 16px; transition:border-color .3s, box-shadow .35s, opacity .35s;
+    opacity:.62;
+  }
+  .node .role{ font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); }
+  .node h3{ font-family:var(--mono); font-size:15.5px; margin:3px 0 3px; font-weight:640; letter-spacing:-.01em; }
+  .node .desc{ font-size:12.5px; color:var(--muted); margin:0 0 12px; min-height:32px; }
+  .chip{
+    display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11px; letter-spacing:.04em;
+    padding:3px 9px; border-radius:20px; border:1px solid var(--line); color:var(--muted); background:var(--ground);
+  }
+  .chip .dot{ width:7px; height:7px; border-radius:50%; background:var(--faint); }
+
+  .node.active{ opacity:1; border-color:var(--signal); box-shadow:0 0 0 1px var(--signal), 0 0 34px -6px color-mix(in srgb,var(--signal) 60%,transparent); }
+  .node.verified{ opacity:1; border-color:var(--signal-dim); }
+  .node.verified .chip{ color:var(--signal); border-color:var(--signal-dim); }
+  .node.verified .chip .dot{ background:var(--signal); box-shadow:0 0 8px var(--signal); }
+  .node.running{ opacity:1; border-color:var(--signal); }
+  .node.running .chip{ color:var(--ink-on-accent); background:var(--signal); border-color:var(--signal); }
+  .node.running .chip .dot{ background:var(--ink-on-accent); }
+  .node.failed{ opacity:1; border-color:var(--danger); box-shadow:0 0 0 1px var(--danger), 0 0 34px -6px color-mix(in srgb,var(--danger) 55%,transparent); }
+  .node.failed .chip{ color:var(--danger); border-color:var(--danger); }
+  .node.failed .chip .dot{ background:var(--danger); box-shadow:0 0 8px var(--danger); }
+
+  .checks{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
+  .checks li{
+    display:flex; align-items:center; gap:9px; font-family:var(--mono); font-size:12px; color:var(--faint);
+    transition:color .25s;
+  }
+  .checks li .mark{
+    flex:none; width:16px; height:16px; border-radius:5px; border:1px solid var(--line);
+    display:grid; place-items:center; font-size:10px; color:transparent; transition:all .25s;
+  }
+  .checks li.pass{ color:var(--ink); }
+  .checks li.pass .mark{ background:var(--signal); border-color:var(--signal); color:var(--ink-on-accent); }
+  .checks li.fail{ color:var(--danger); }
+  .checks li.fail .mark{ background:var(--danger); border-color:var(--danger); color:#fff; }
+  .checks li.busy .mark{ border-color:var(--signal); animation:blink .7s steps(2) infinite; }
+  @keyframes blink{ 50%{ background:color-mix(in srgb,var(--signal) 35%,transparent);} }
+
+  /* connectors */
+  .conn{ position:relative; flex:0 0 74px; align-self:center; height:40px; display:flex; align-items:center; }
+  .conn .rail{ height:2px; width:100%; background:var(--line); border-radius:2px; position:relative; overflow:visible; }
+  .conn.live .rail{ background:linear-gradient(90deg,var(--signal-dim),var(--signal)); }
+  .conn .pulse{
+    position:absolute; top:50%; left:0; width:12px; height:12px; margin-top:-6px; border-radius:50%;
+    background:var(--signal); box-shadow:0 0 12px 2px var(--signal); opacity:0; transform:translateX(0);
+  }
+  .conn.firing .pulse{ animation:travel var(--travel,700ms) ease forwards; }
+  @keyframes travel{ 0%{opacity:1;transform:translateX(0);} 90%{opacity:1;} 100%{opacity:0;transform:translateX(60px);} }
+  .conn .arrow{ position:absolute; right:-2px; top:50%; margin-top:-5px; width:0;height:0;
+    border-left:7px solid var(--line); border-top:5px solid transparent; border-bottom:5px solid transparent; }
+  .conn.live .arrow{ border-left-color:var(--signal); }
+
+  .src{ flex:0 0 92px; align-self:center; text-align:center; }
+  .src .bolt{ font-size:26px; line-height:1; filter:drop-shadow(0 0 10px color-mix(in srgb,var(--burn) 70%,transparent)); }
+  .src .lbl{ font-family:var(--mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-top:6px; }
+  .src.on .bolt{ color:var(--burn); animation:pop .5s ease; }
+  @keyframes pop{ 0%{transform:scale(.4);opacity:0;} 60%{transform:scale(1.15);} 100%{transform:scale(1);opacity:1;} }
+
+  .goal{ flex:0 0 96px; align-self:center; text-align:center; opacity:.5; transition:opacity .3s; }
+  .goal .ring{ width:52px;height:52px;margin:0 auto;border-radius:50%; border:2px dashed var(--line); display:grid;place-items:center; font-size:22px; color:var(--muted); }
+  .goal .lbl{ font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-top:7px; }
+  .goal.run{ opacity:1; }
+  .goal.run .ring{ border-style:solid; border-color:var(--signal); color:var(--signal); box-shadow:0 0 26px -4px var(--signal); animation:pop .5s ease; }
+  .goal.halt{ opacity:1; }
+  .goal.halt .ring{ border-style:solid; border-color:var(--danger); color:var(--danger); box-shadow:0 0 26px -4px var(--danger); }
+  .goal.halt .lbl{ color:var(--danger); }
+
+  /* eFuse panel */
+  .efuse{
+    margin:2px 24px 20px; border:1px solid var(--line); border-radius:11px; background:
+      repeating-linear-gradient(90deg,transparent 0 13px, color-mix(in srgb,var(--line) 40%,transparent) 13px 14px), var(--ground);
+    padding:13px 15px; display:flex; flex-wrap:wrap; align-items:center; gap:12px 22px;
+  }
+  .efuse .tag{ font-family:var(--mono); font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--burn); display:flex; align-items:center; gap:8px; }
+  .efuse .tag::before{ content:"▣"; }
+  .fuse{ font-family:var(--mono); font-size:12px; color:var(--muted); display:flex; align-items:center; gap:7px; }
+  .fuse b{ color:var(--ink); font-weight:600; }
+  .bit{ width:10px;height:10px;border-radius:2px; background:var(--line); flex:none; }
+  .bit.set{ background:var(--burn); box-shadow:0 0 8px color-mix(in srgb,var(--burn) 80%,transparent); }
+  .efuse.read{ border-color:var(--burn); }
+  .slots{ display:flex; gap:5px; }
+  .slot{ width:22px;height:12px;border-radius:2px;border:1px solid var(--line); }
+  .slot.filled{ background:var(--burn); border-color:var(--burn); }
+
+  /* console */
+  .console{
+    font-family:var(--mono); font-size:13px; background:var(--ground); border-top:1px solid var(--line);
+    padding:15px 20px; min-height:88px; display:flex; gap:12px; align-items:flex-start;
+  }
+  .console .caret{ color:var(--signal); flex:none; }
+  .console .log{ margin:0; color:var(--ink); font-variant-numeric:tabular-nums; }
+  .console .log .step{ color:var(--faint); }
+  .console.err .caret{ color:var(--danger); }
+  .console.err .log{ color:var(--danger); }
+  .console.ok .caret{ color:var(--signal); }
+
+  /* legend + foot */
+  .legend{ display:flex; flex-wrap:wrap; gap:16px 22px; margin:20px 2px 0; }
+  .legend span{ display:inline-flex; align-items:center; gap:8px; font-family:var(--mono); font-size:11.5px; color:var(--muted); }
+  .key{ width:12px;height:12px;border-radius:3px; flex:none; }
+  .k-pass{ background:var(--signal);} .k-burn{ background:var(--burn);} .k-fail{ background:var(--danger);} .k-pend{ background:var(--faint);}
+  .foot{ margin-top:26px; color:var(--faint); font-size:12.5px; max-width:70ch; }
+  .foot code{ font-family:var(--mono); color:var(--muted); }
+
+  :focus-visible{ outline:2px solid var(--signal); outline-offset:2px; border-radius:6px; }
+
+  @media (max-width:560px){
+    .controls{ gap:8px; }
+    .btn{ padding:8px 12px; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+    .conn.firing .pulse{ opacity:0; }
+  }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">ESP32-C5 · Secure Boot v2</p>
+  <h1>Boot-time chain of trust</h1>
+  <p class="lede">Each stage cryptographically verifies the next <b>before</b> surrendering control, anchored in immutable ROM. Press <b>Play</b> to boot a locked device — or flip <b>Tamper app image</b> and watch the hardware refuse.</p>
+
+  <div class="controls" role="group" aria-label="Playback controls">
+    <button class="btn primary" id="play" aria-label="Play or pause the boot sequence"><span class="ico" id="playIco">▶</span> <span id="playTxt">Play</span></button>
+    <button class="btn" id="step">Step ▸</button>
+    <button class="btn" id="reset">↺ Reset</button>
+    <span class="spacer"></span>
+    <label class="switch" title="Corrupt the application image before verification">
+      <input type="checkbox" id="tamper">
+      <span class="track" aria-hidden="true"></span>
+      <span class="lbl">Tamper app image</span>
+    </label>
+    <select class="speed" id="speed" aria-label="Playback speed">
+      <option value="1600">0.5×</option>
+      <option value="1050" selected>1×</option>
+      <option value="650">1.75×</option>
+    </select>
+  </div>
+
+  <div class="stage-wrap">
+    <div class="stage">
+      <div class="pipeline">
+        <div class="src" id="src">
+          <div class="bolt">⚡</div>
+          <div class="lbl">Power&nbsp;on</div>
+        </div>
+
+        <div class="conn" id="c-src"><div class="rail"></div><div class="pulse"></div><div class="arrow"></div></div>
+
+        <div class="node" id="n-rom">
+          <div class="role">Root of trust</div>
+          <h3>First-stage ROM</h3>
+          <p class="desc">Immutable mask ROM. Reads eFuse, then verifies the 2nd-stage bootloader.</p>
+          <span class="chip"><span class="dot"></span><span class="st">idle</span></span>
+        </div>
+
+        <div class="conn" id="c-rom"><div class="rail"></div><div class="pulse"></div><div class="arrow"></div></div>
+
+        <div class="node" id="n-bl">
+          <div class="role">Verified by ROM</div>
+          <h3>2nd-stage bootloader</h3>
+          <p class="desc">In flash, signed. Once trusted, it verifies the application.</p>
+          <span class="chip"><span class="dot"></span><span class="st">unverified</span></span>
+          <ul class="checks" id="ck-bl">
+            <li data-k="0"><span class="mark">✓</span>Structural gate · magic 0xe7 + CRC32</li>
+            <li data-k="1"><span class="mark">✓</span>Check 1 · trusted key (eFuse digest)</li>
+            <li data-k="2"><span class="mark">✓</span>Check 2 · image integrity (hash)</li>
+            <li data-k="3"><span class="mark">✓</span>Check 3 · ECDSA-P256 signature</li>
+          </ul>
+        </div>
+
+        <div class="conn" id="c-bl"><div class="rail"></div><div class="pulse"></div><div class="arrow"></div></div>
+
+        <div class="node" id="n-app">
+          <div class="role">Verified by bootloader</div>
+          <h3>Application</h3>
+          <p class="desc">In flash, signed. Your firmware — the payload of the whole chain.</p>
+          <span class="chip"><span class="dot"></span><span class="st">unverified</span></span>
+          <ul class="checks" id="ck-app">
+            <li data-k="0"><span class="mark">✓</span>Structural + anti-rollback (secure_version)</li>
+            <li data-k="1"><span class="mark">✓</span>Check 1 · trusted key (eFuse digest)</li>
+            <li data-k="2"><span class="mark">✓</span>Check 2 · image integrity (hash)</li>
+            <li data-k="3"><span class="mark">✓</span>Check 3 · ECDSA-P256 signature</li>
+          </ul>
+        </div>
+
+        <div class="conn" id="c-app"><div class="rail"></div><div class="pulse"></div><div class="arrow"></div></div>
+
+        <div class="goal" id="goal">
+          <div class="ring">▶</div>
+          <div class="lbl">Runs</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="efuse" id="efuse" aria-label="eFuse state">
+      <span class="tag">eFuse · one-time-programmable</span>
+      <span class="fuse"><span class="bit set" id="sben-bit"></span><b>SECURE_BOOT_EN</b> = 1</span>
+      <span class="fuse">Key digests:
+        <span class="slots">
+          <span class="slot filled" title="slot 0 · active"></span>
+          <span class="slot" title="slot 1 · empty"></span>
+          <span class="slot" title="slot 2 · empty"></span>
+        </span>
+      </span>
+      <span class="fuse" style="color:var(--faint)">burned once at first boot · cannot be undone</span>
+    </div>
+
+    <div class="console" id="console" aria-live="polite">
+      <span class="caret">&gt;</span>
+      <p class="log" id="log"><span class="step">[ready]</span> Locked device. Press Play to trace the boot, or Step through it one check at a time.</p>
+    </div>
+  </div>
+
+  <div class="legend" aria-hidden="true">
+    <span><span class="key k-pass"></span>verified / control transferred</span>
+    <span><span class="key k-burn"></span>eFuse · irreversible</span>
+    <span><span class="key k-fail"></span>verification failed → abort</span>
+    <span><span class="key k-pend"></span>pending</span>
+  </div>
+
+  <p class="foot">A simplified but faithful model of Secure Boot v2 on the ESP32-C5 (ECDSA-P256 scheme). The ROM is trusted by construction; every later stage must present a signature that matches a public-key digest burned into eFuse. A single failed check aborts the boot — there is no recovery path to unsigned code. Full detail, including OTA slot fallback and the RSA/ECDSA options, is in <code>SECURE_BOOT_DEEP_DIVE.md</code> §1.</p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (s) { return document.querySelector(s); };
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var els = {
+    src: $("#src"), goal: $("#goal"), log: $("#log"), console: $("#console"),
+    play: $("#play"), playIco: $("#playIco"), playTxt: $("#playTxt"),
+    step: $("#step"), reset: $("#reset"), tamper: $("#tamper"), speed: $("#speed"),
+    efuse: $("#efuse")
+  };
+
+  function node(id){ return document.getElementById("n-" + id); }
+  function conn(id){ return document.getElementById("c-" + id); }
+  function chipTxt(id, t){ node(id).querySelector(".st").textContent = t; }
+
+  function setConsole(html, cls){
+    els.log.innerHTML = html;
+    els.console.className = "console" + (cls ? " " + cls : "");
+  }
+  function nodeClass(id, cls){ node(id).className = "node" + (cls ? " " + cls : ""); }
+
+  function tick(list, k, state){
+    var li = document.querySelector("#ck-" + list + ' li[data-k="' + k + '"]');
+    li.className = state || "";
+  }
+
+  function firePulse(id){
+    var c = conn(id);
+    c.classList.add("live");
+    if (reduce) return;
+    c.classList.remove("firing");
+    void c.offsetWidth;              // restart animation
+    c.style.setProperty("--travel", Math.min(900, cfg.interval * 0.62) + "ms");
+    c.classList.add("firing");
+  }
+
+  // ---- step machine -------------------------------------------------
+  var cfg = { interval: 1050 };
+  var steps = [];
+  var idx = 0;
+  var timer = null;
+  var playing = false;
+
+  function n(num){ return '<span class="step">[' + num + ']</span> '; }
+
+  function buildSteps(tampered){
+    var s = [];
+    s.push({ log: n("boot") + "Power applied — first-stage ROM bootloader begins. Immutable silicon, the root of trust.",
+      run: function(){ els.src.classList.add("on"); nodeClass("rom","active"); chipTxt("rom","running"); firePulse("src"); } });
+
+    s.push({ log: n("efuse") + "ROM reads eFuse: SECURE_BOOT_EN = 1 → every image must be signature-verified.",
+      cls:"", run: function(){ els.efuse.classList.add("read"); $("#sben-bit").classList.add("set"); } });
+
+    s.push({ log: n("bl 0/3") + "Locate 2nd-stage bootloader signature block — magic 0xe7, CRC32 valid.",
+      run: function(){ nodeClass("bl","active"); chipTxt("bl","verifying"); tick("bl",0,"busy"); } });
+    s.push({ log: n("bl 1/3") + "Trusted key — SHA-256 of the bootloader's public key matches eFuse digest slot 0.",
+      run: function(){ tick("bl",0,"pass"); tick("bl",1,"busy"); } });
+    s.push({ log: n("bl 2/3") + "Integrity — recomputed image hash matches the hash in the signature block.",
+      run: function(){ tick("bl",1,"pass"); tick("bl",2,"busy"); } });
+    s.push({ log: n("bl 3/3") + "Signature — ECDSA-P256 signature verifies against the trusted key. Bootloader authentic.",
+      cls:"ok", run: function(){ tick("bl",2,"pass"); tick("bl",3,"pass"); nodeClass("bl","verified"); chipTxt("bl","verified"); } });
+
+    s.push({ log: n("xfer") + "Control transfers ROM → 2nd-stage bootloader. Trust inherited.",
+      run: function(){ firePulse("rom"); nodeClass("rom","verified"); chipTxt("rom","done"); nodeClass("bl","running"); chipTxt("bl","running"); } });
+
+    s.push({ log: n("app 0/3") + "Bootloader reads otadata, selects active slot, enforces anti-rollback (secure_version ≥ eFuse floor).",
+      run: function(){ nodeClass("app","active"); chipTxt("app","verifying"); tick("app",0,"busy"); } });
+    s.push({ log: n("app 1/3") + "Trusted key — application public key matches an eFuse digest slot.",
+      run: function(){ tick("app",0,"pass"); tick("app",1,"busy"); } });
+
+    if (tampered){
+      s.push({ log: n("app 2/3") + "Integrity — recomputed hash of the app image does NOT match the signature block. Image altered.",
+        cls:"err", run: function(){ tick("app",1,"pass"); tick("app",2,"fail"); nodeClass("app","failed"); chipTxt("app","INVALID"); } });
+      s.push({ log: n("abort") + "Signature rejected. No other valid OTA slot. Boot ABORTS — the chip halts. Tampered code never runs.",
+        cls:"err", run: function(){ nodeClass("bl","verified"); chipTxt("bl","done"); els.goal.className = "goal halt"; els.goal.querySelector(".ring").textContent = "⊘"; els.goal.querySelector(".lbl").textContent = "HALT"; } });
+      return s;
+    }
+
+    s.push({ log: n("app 2/3") + "Integrity — recomputed image hash matches the signature block.",
+      run: function(){ tick("app",1,"pass"); tick("app",2,"busy"); } });
+    s.push({ log: n("app 3/3") + "Signature — ECDSA-P256 signature verifies. Application authentic.",
+      cls:"ok", run: function(){ tick("app",2,"pass"); tick("app",3,"pass"); nodeClass("app","verified"); chipTxt("app","verified"); } });
+    s.push({ log: n("xfer") + "Control transfers bootloader → application.",
+      run: function(){ firePulse("bl"); nodeClass("bl","verified"); chipTxt("bl","done"); nodeClass("app","running"); chipTxt("app","running"); } });
+    s.push({ log: n("run") + "Application runs. esp_secure_boot_enabled() → true. Only code signed by your key ever executed.",
+      cls:"ok", run: function(){ firePulse("app"); els.goal.className = "goal run"; els.goal.querySelector(".ring").textContent = "✓"; els.goal.querySelector(".lbl").textContent = "SECURE"; } });
+    return s;
+  }
+
+  function reset(keepTamper){
+    stop();
+    idx = 0;
+    steps = buildSteps(els.tamper.checked);
+    // clear visuals
+    ["rom","bl","app"].forEach(function(id){ nodeClass(id,""); });
+    chipTxt("rom","idle"); chipTxt("bl","unverified"); chipTxt("app","unverified");
+    [0,1,2,3].forEach(function(k){ tick("bl",k,""); tick("app",k,""); });
+    ["src","rom","bl","app"].forEach(function(id){ conn(id).className = "conn"; });
+    els.src.classList.remove("on");
+    els.efuse.classList.remove("read"); $("#sben-bit").classList.remove("set");
+    els.goal.className = "goal"; els.goal.querySelector(".ring").textContent = "▶"; els.goal.querySelector(".lbl").textContent = "Runs";
+    var msg = els.tamper.checked
+      ? '<span class="step">[armed]</span> App image marked tampered. Press Play — verification will fail at the app stage.'
+      : '<span class="step">[ready]</span> Locked device. Press Play to trace the boot, or Step through it one check at a time.';
+    setConsole(msg, els.tamper.checked ? "err" : "");
+    els.step.disabled = false;
+    setPlay(false);
+  }
+
+  function setPlay(on){
+    playing = on;
+    els.playIco.textContent = on ? "❚❚" : "▶";
+    els.playTxt.textContent = on ? "Pause" : (idx > 0 ? "Resume" : "Play");
+  }
+
+  function doStep(){
+    if (idx >= steps.length) { stop(); setPlay(false); return false; }
+    var st = steps[idx++];
+    st.run();
+    setConsole(st.log, st.cls || "");
+    els.step.disabled = idx >= steps.length;
+    if (idx >= steps.length) { stop(); setPlay(false); }
+    return true;
+  }
+
+  function stop(){ if (timer){ clearInterval(timer); timer = null; } }
+  function play(){
+    if (idx >= steps.length) reset();
+    setPlay(true);
+    doStep();
+    stop();
+    timer = setInterval(function(){ if (!doStep()) stop(); }, cfg.interval);
+  }
+
+  els.play.addEventListener("click", function(){
+    if (playing){ stop(); setPlay(false); } else { play(); }
+  });
+  els.step.addEventListener("click", function(){ stop(); setPlay(false); doStep(); });
+  els.reset.addEventListener("click", function(){ reset(); });
+  els.tamper.addEventListener("change", function(){ reset(); });
+  els.speed.addEventListener("change", function(){
+    cfg.interval = parseInt(els.speed.value, 10) || 1050;
+    if (playing){ stop(); timer = setInterval(function(){ if (!doStep()) stop(); }, cfg.interval); }
+  });
+
+  cfg.interval = parseInt(els.speed.value, 10) || 1050;
+  reset();
+})();
+</script>

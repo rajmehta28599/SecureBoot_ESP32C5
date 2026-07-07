@@ -367,6 +367,7 @@ bootloader, the bootloader verifies the app, and any image not signed with
 | `partitions.csv` | Custom table; table pushed to 0xD000 to fit a signed bootloader |
 | `sdkconfig.defaults` | Stage 1 baseline + commented Stage 2/3 option blocks |
 | `SECURE_BOOT_DEEP_DIVE.md` | One-stop deep dive — boot flow, chip matrix, schemes, eFuses, per-file map, threat model, glossary |
+| `secure-boot-flow.html` | Interactive, animated diagram of the boot-time chain of trust (open in a browser) |
 | `CLAUDE.md` | Working rules for Claude Code / contributors in this folder |
 
 ## Key-safety rules

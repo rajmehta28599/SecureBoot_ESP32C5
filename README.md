@@ -11,7 +11,10 @@ stages and watch a device go from "runs anything" to "cryptographically locked".
 📖 **New here?** The [`SECURE_BOOT_DEEP_DIVE.md`](./SECURE_BOOT_DEEP_DIVE.md) companion is a
 one-stop, first-timer-friendly walkthrough — boot-flow diagrams, the full ESP32-family
 support matrix, signature schemes, eFuse/key internals, a per-file map, the threat model,
-and a glossary of every term. This README is the theory + the 3-stage hands-on lab.
+and a glossary of every term. For a practical visual map of code changes, USB/UART
+flashing, OTA, Flash Encryption, and key rotation, see
+[`SECURE_BOOT_VISUAL_GUIDE.md`](./SECURE_BOOT_VISUAL_GUIDE.md). This README is the theory
+plus the 3-stage hands-on lab.
 
 ---
 

@@ -15,8 +15,10 @@ and a glossary of every term. For a practical visual map of code changes, USB/UA
 flashing, OTA, Flash Encryption, and key rotation, see
 [`SECURE_BOOT_VISUAL_GUIDE.md`](./SECURE_BOOT_VISUAL_GUIDE.md). For a command-by-command
 implementation checklist with OTA and key-rotation snippets, see
-[`SECURE_BOOT_IMPLEMENTATION_GUIDE.md`](./SECURE_BOOT_IMPLEMENTATION_GUIDE.md). This README
-is the theory plus the 3-stage hands-on lab.
+[`SECURE_BOOT_IMPLEMENTATION_GUIDE.md`](./SECURE_BOOT_IMPLEMENTATION_GUIDE.md). For a
+hands-on flow lab that explains what happens at every practical step, see
+[`SECURE_BOOT_PRACTICAL_FLOW.md`](./SECURE_BOOT_PRACTICAL_FLOW.md). This README is the
+theory plus the 3-stage hands-on lab.
 
 ---
 
@@ -383,6 +385,7 @@ bootloader, the bootloader verifies the app, and any image not signed with
 | `SECURE_BOOT_DEEP_DIVE.md` | One-stop deep dive — boot flow, chip matrix, schemes, eFuses, per-file map, threat model, glossary |
 | `SECURE_BOOT_VISUAL_GUIDE.md` | Practical visual map of code changes, flashing, OTA, Flash Encryption, and key rotation |
 | `SECURE_BOOT_IMPLEMENTATION_GUIDE.md` | Step-by-step implementation checklist with commands, OTA layout, code snippets, testing scenarios |
+| `SECURE_BOOT_PRACTICAL_FLOW.md` | Hands-on implementation flow lab showing each action, device change, and expected result |
 | `secure-boot-flow.html` | Interactive, animated diagram of the boot-time chain of trust (open in a browser) |
 | `secure-boot-setup.html` | Interactive hands-on setup lab — staged commands, simulated serial/menuconfig output, eFuse before/after |
 | `secure-boot-cheatsheet.html` | One-page printable command quick reference (all stages + recovery) |

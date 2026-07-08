@@ -440,7 +440,99 @@ Secure Boot proves authenticity. Flash Encryption protects confidentiality.
 
 For lab testing, use Flash Encryption Development mode. For production, use Release mode only after the update and recovery process is proven.
 
-## 12. Final Pre-Lock Checklist
+## 12. Testing Scenarios: Success And Failure
+
+Use this matrix to understand what should pass, what should fail, and what each result proves. Do not test bad bootloaders on a locked board.
+
+| Test | Device state | Action | Expected result | What it proves |
+|---|---|---|---|---|
+| Baseline boot | Secure Boot off | `idf.py build`, then `idf.py -p COM15 flash monitor` | App boots and prints Secure Boot disabled | Board, port, toolchain, and app are working |
+| Normal code change | Secure Boot off | Change a print line, rebuild, flash | Modified app boots | Plain development flow works |
+| Signed app rehearsal | Stage 2 only | Generate key, enable signed app config, build | Signature block exists, hardware bit still disabled | Signing flow works without eFuse risk |
+| Wrong or unsigned app | Secure Boot off | Flash another compatible app | App boots | This is the insecurity Secure Boot fixes |
+| Valid signed update | Secure Boot on | Build app with trusted key, flash app | App boots | Signed updates still work |
+| Unsigned app after lock | Secure Boot on, spare board only | Flash an unsigned app, not bootloader | Bootloader rejects app | App authenticity enforcement works |
+| Tampered signed app | Secure Boot on, spare board only | Modify image after signing | Boot fails | Integrity check works |
+| Wrong signing key | Secure Boot on, spare board only | Sign app with untrusted key | Boot fails | eFuse key digest check works |
+| Old signed app | Secure Boot on | Flash older signed app | Boots unless anti-rollback is enabled | Signature alone does not block rollback |
+| OTA bad image | OTA-enabled build | Download corrupted or wrong-key image | OTA rejects or rolls back | OTA recovery path works |
+| Flash readout | Secure Boot only | Read flash externally | Plaintext may be visible | Secure Boot is not confidentiality |
+| Flash readout | Secure Boot plus Flash Encryption | Read flash externally | Data is encrypted | Flash Encryption protects contents |
+
+Visual pass/fail flow:
+
+```text
+new firmware received
+        |
+        v
+signature block present?
+        |
+        +-- no -> reject after Secure Boot
+        |
+        v
+public-key digest trusted in eFuse?
+        |
+        +-- no -> reject
+        |
+        v
+image hash still matches?
+        |
+        +-- no -> reject
+        |
+        v
+anti-rollback version acceptable?
+        |
+        +-- no -> reject
+        |
+        v
+boot firmware
+```
+
+Safe learning order:
+
+```text
+1. Test success in Stage 1
+2. Test code-change reupload in Stage 1
+3. Test signed image creation in Stage 2
+4. Inspect eFuse summary before locking
+5. Lock only a spare board
+6. Test valid signed update
+7. Test invalid app rejection only if recovery path is proven
+8. Never test invalid bootloader on a locked board
+```
+
+## 13. Security Gaps, Loopholes, And Options
+
+Secure Boot is strong, but it is not a complete product security plan by itself.
+
+| Gap or loophole | Why it matters | Mitigation |
+|---|---|---|
+| Flash remains readable | Secure Boot authenticates code but does not hide it | Enable Flash Encryption |
+| Old signed firmware can boot | A vulnerable old version may still be validly signed | Enable anti-rollback and manage secure version carefully |
+| Private key leak | An attacker with the key can sign trusted firmware | Use offline storage or HSM, access control, and key rotation slots |
+| Single-key setup | Lost or leaked key cannot be replaced | Provision multiple Secure Boot key slots before production lock |
+| Insecure OTA transport | Device may receive attacker-controlled updates | Use HTTPS, certificate validation, version checks, and signed images |
+| Bad trusted firmware | Secure Boot runs anything signed by your key, even buggy code | Add release review, testing, staged rollout, and rollback |
+| Debug/download access | Physical access may allow probing or recovery paths | Lock JTAG and choose secure UART download policy |
+| No OTA partition | Failed field update has no alternate slot | Add `otadata`, `ota_0`, and `ota_1` before production |
+| Flash Encryption release mode | Recovery over UART can become difficult or impossible | Prove OTA and factory process before release lock |
+| Aggressive key revocation | Repeated failures can revoke all keys and brick the board | Use conservative revocation unless threat model requires aggressive mode |
+| ECDSA-P192 | Weak legacy security level | Use ECDSA-P256 by default or P-384 if required |
+
+Common implementation options:
+
+| Option | Best for | Trade-off |
+|---|---|---|
+| Stage 1 plain firmware | Early development | No security |
+| Stage 2 signed app only | Rehearsing signing safely | Hardware still runs replaceable bootloader |
+| Secure Boot only | Preventing unsigned firmware execution | Flash can still be read |
+| Secure Boot plus Flash Encryption | Production device protection | More complex update and recovery flow |
+| USB/UART update | Lab and factory | Not suitable for remote fleet updates |
+| OTA update | Field products | Requires partitions, network code, TLS, rollback, and release process |
+| Single signing key | Simple demo | No real recovery from lost/leaked key |
+| Multiple key slots | Production rotation | Must be planned before eFuses are locked |
+
+## 14. Final Pre-Lock Checklist
 
 Before enabling hardware Secure Boot on any board:
 
@@ -455,8 +547,10 @@ Before enabling hardware Secure Boot on any board:
 | OTA partition plan decided before production | Yes |
 | Flash Encryption decision made | Yes |
 | Recovery path understood | Yes |
+| Success and failure tests reviewed | Yes |
+| Known gaps and mitigation plan reviewed | Yes |
 
-## 13. Troubleshooting
+## 15. Troubleshooting
 
 | Symptom | Likely cause | Action |
 |---|---|---|
@@ -466,7 +560,7 @@ Before enabling hardware Secure Boot on any board:
 | Cannot update with a new key | New key was not provisioned in eFuse | Use the original key or replace board |
 | Device cannot be recovered | Bootloader/key/revoke mistake | Review eFuse state and provisioning logs |
 
-## 14. Minimal Learning Path
+## 16. Minimal Learning Path
 
 For this repository, the recommended learning order is:
 
@@ -481,4 +575,5 @@ For this repository, the recommended learning order is:
 8. Rebuild a signed app and prove updates still work
 9. Design OTA before using Secure Boot in production
 10. Add Flash Encryption only after update flow is proven
+11. Run the testing matrix and document pass/fail behavior
 ```

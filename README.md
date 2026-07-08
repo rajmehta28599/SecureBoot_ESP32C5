@@ -382,7 +382,7 @@ bootloader, the bootloader verifies the app, and any image not signed with
 | `sdkconfig.defaults` | Stage 1 baseline + commented Stage 2/3 option blocks |
 | `SECURE_BOOT_DEEP_DIVE.md` | One-stop deep dive — boot flow, chip matrix, schemes, eFuses, per-file map, threat model, glossary |
 | `SECURE_BOOT_VISUAL_GUIDE.md` | Practical visual map of code changes, flashing, OTA, Flash Encryption, and key rotation |
-| `SECURE_BOOT_IMPLEMENTATION_GUIDE.md` | Step-by-step implementation checklist with commands, OTA layout, and code snippets |
+| `SECURE_BOOT_IMPLEMENTATION_GUIDE.md` | Step-by-step implementation checklist with commands, OTA layout, code snippets, testing scenarios |
 | `secure-boot-flow.html` | Interactive, animated diagram of the boot-time chain of trust (open in a browser) |
 | `secure-boot-setup.html` | Interactive hands-on setup lab — staged commands, simulated serial/menuconfig output, eFuse before/after |
 | `secure-boot-cheatsheet.html` | One-page printable command quick reference (all stages + recovery) |

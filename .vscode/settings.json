@@ -1,8 +1,9 @@
 {
-    "idf.currentSetup": "C:\\Users\\rajme\\esp\\v6.0.1\\esp-idf",
-    "idf.openOcdConfigs": [
-        "board/esp32c5-builtin.cfg"
-    ],
-    "idf.portWin": "COM9",
-    "idf.flashType": "UART"
+  "idf.currentSetup": "C:\\Users\\rajme\\esp\\v6.0.2\\esp-idf",
+  "idf.openOcdConfigs": [
+    "board/esp32c5-builtin.cfg"
+  ],
+  "idf.portWin": "COM9",
+  "idf.flashType": "UART",
+  "idf.customExtraVars": {}
 }

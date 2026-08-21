@@ -898,11 +898,19 @@ project(secure_boot_demo)
 ```cmake
 idf_component_register(SRCS "secure_boot_demo_main.c"
                        PRIV_REQUIRES bootloader_support
+                                     efuse
+                                     esp_app_format
+                                     app_update
+                                     esp_partition
+                                     spi_flash
+                                     esp_timer
                        INCLUDE_DIRS ".")
 ```
 
-- **Role:** declares that exactly one source file compiles into the `main` component, and that the component privately depends on **`bootloader_support`**.
-- **Why `bootloader_support` matters:** that component provides the runtime query functions the demo is built around — `esp_secure_boot_enabled()` (from `esp_secure_boot.h`) and `esp_flash_encryption_enabled()` (from `esp_flash_encrypt.h`). Without this `PRIV_REQUIRES`, those symbols would not link. `PRIV_REQUIRES` (private, not public) is correct here because nothing else `#include`s this component's headers.
+- **Role:** declares that exactly one source file compiles into the `main` component, and which components it privately depends on.
+- **Why `bootloader_support` matters:** it provides the security queries the demo is built around — `esp_secure_boot_enabled()` (from `esp_secure_boot.h`) and `esp_get_flash_encryption_mode()` (from `esp_flash_encrypt.h`). Without this `PRIV_REQUIRES`, those symbols would not link.
+- **Why the other six:** `efuse` for the `esp_efuse_*` queries and the `ESP_EFUSE_*` field table — note that `bootloader_support` requires `efuse` only *privately*, so it is **not** propagated to `main` and must be listed here; `esp_app_format` for `esp_app_get_description()`; `app_update` for `esp_ota_get_running_partition()`; `esp_partition` for the `esp_partition_t` fields; `spi_flash` for `esp_flash_get_size()` / `esp_flash_get_physical_size()`; `esp_timer` for uptime. The core components (`freertos`, `log`, `esp_hw_support`, `heap`) are always available, so `esp_chip_info.h`, `esp_mac.h` and `esp_heap_caps.h` need no entry.
+- `PRIV_REQUIRES` (private, not public) is correct here because nothing else `#include`s this component's headers.
 - **Key data:** the source list, the dependency, and `INCLUDE_DIRS "."` (which places this folder on the include path).
 - **Concern:** **build**. It is the wiring that connects the app code to the security-status API, but it enables nothing on its own.
 
@@ -915,16 +923,52 @@ This is the only executable code in the project, and it is deliberately a **read
 | Header | Function used | What it answers |
 |---|---|---|
 | `esp_secure_boot.h` | `esp_secure_boot_enabled()` | Is the `SECURE_BOOT_EN` eFuse burned? |
-| `esp_flash_encrypt.h` | `esp_flash_encryption_enabled()`, `esp_get_flash_encryption_mode()` | Is flash encryption on, and in which mode? |
+| `esp_flash_encrypt.h` | `esp_get_flash_encryption_mode()` | Is flash encryption in DISABLED / DEVELOPMENT / RELEASE mode? |
+| `esp_efuse.h` | `esp_efuse_is_flash_encryption_enabled()` | Is flash encryption on? |
+| `esp_efuse_table.h` | `ESP_EFUSE_*` field descriptors | The raw fuse fields behind all of the above |
+
+> **Note on `esp_flash_encryption_enabled()`:** ESP-IDF v6.0 marks it
+> `__attribute__((deprecated))`; it still works (it just forwards to
+> `esp_efuse_is_flash_encryption_enabled()`) but every call site emits
+> `-Wdeprecated-declarations`. The demo uses the non-deprecated spelling, which
+> is why `efuse` appears in `PRIV_REQUIRES` above.
 
 The code comment makes the essential point: these functions *"read the actual eFuse bits over the eFuse controller — they do NOT trust a compile-time `#define`, so the answer is the ground truth."* That is the entire pedagogical value: the readout cannot be faked by editing a config.
 
-**What `app_main()` prints — the four blocks:**
+**The STEP banner — the one compile-time value in the report.** Above the five
+blocks the app prints `STEP N of 3` plus a build-state line. `N` is **not** read
+from hardware; it is chosen by the preprocessor:
 
-1. **Identity banner** — ESP-IDF version (`esp_get_idf_version()`), core count and silicon revision (`esp_chip_info()`), rendered as `v{rev/100}.{rev%100}`.
-2. **Secure Boot line** — `bool secure_boot_on = esp_secure_boot_enabled();` printed as either `ENABLED  (eFuse burned, irreversible)` or `DISABLED (device will run unsigned code)`.
-3. **Flash Encryption line** — the on/off boolean plus a human-readable mode from a local `flash_enc_mode_str()` helper that maps the enum: `DISABLED`, `DEVELOPMENT (re-flashable, NOT for production)`, or `RELEASE (locked down)`.
-4. **Interpretation** — a short `ESP_LOGI`/`ESP_LOGW` explainer that changes with state: if Secure Boot is on it warns that flashing an unsigned image will now brick the boot; if off it points to README Stage 3; if flash is unencrypted it warns that the flash is *"readable with `esptool read_flash`."*
+```c
+#if defined(CONFIG_SECURE_BOOT)                        /* -> STEP 3 */
+#elif defined(CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT) /* -> STEP 2 */
+#else                                                   /* -> STEP 1 */
+```
+
+It has to work this way: STEP 1 and STEP 2 are **indistinguishable at runtime**,
+because software signing burns nothing and `esp_secure_boot_enabled()` returns
+`false` in both. The banner is the only thing that can tell them apart, and the
+gap between the banner ("app is signed") and block 4 ("Secure Boot: DISABLED")
+in STEP 2 *is* the lesson. Note the `#if defined()` form — boolean Kconfig
+symbols are either defined as `1` or absent entirely, so `#if CONFIG_X == 1`
+would break on the absent case.
+
+**What `app_main()` prints — the five blocks:**
+
+1. **`[1/5] DEVICE IDENTITY`** — chip model via `esp_chip_info()` mapped through a local `chip_model_str()`, silicon revision rendered as `v{rev/100}.{rev%100}`, core count, the fused feature bitmask (`CHIP_FEATURE_*`), configured vs. physically detected flash size (`esp_flash_get_size()` vs `esp_flash_get_physical_size()` — a mismatch silently truncates the flash layout), base and WiFi-STA MAC (`esp_read_mac()`), and which console `printf()` is routed to. On the C5 the port only ever sets `WIFI_BGN | BLE | IEEE802154`, so the block prints an explicit note that the radio is dual-band 2.4+5 GHz even though IDF has no 5 GHz feature bit.
+2. **`[2/5] FIRMWARE IMAGE`** — project name, app version, compile date/time, ESP-IDF version and `secure_version` from `esp_app_get_description()`; the ELF SHA-256 prefix (`esp_app_get_elf_sha256()`) for proving the binary on the board is the one just built; and the running partition's label, type/subtype, offset and size from `esp_ota_get_running_partition()`, plus `CONFIG_PARTITION_TABLE_OFFSET`.
+3. **`[3/5] RUNTIME HEALTH`** — reset reason (a Secure Boot signature failure shows up here as a reboot loop), free heap, minimum-ever free heap, largest contiguous 8-bit block, and uptime.
+4. **`[4/5] SECURITY STATE`** — the two headline lines. `esp_secure_boot_enabled()` printed as either `ENABLED  (eFuse burned, irreversible)` or `DISABLED (device will run unsigned code)`; `esp_efuse_is_flash_encryption_enabled()` as `ENABLED`/`DISABLED`; and a human-readable mode from a local `flash_enc_mode_str()` helper mapping the enum to `DISABLED`, `DEVELOPMENT (re-flashable, NOT for production)`, or `RELEASE (locked down)`.
+5. **`[5/5] eFUSE DETAIL`** — the fuses themselves, **all read-only**: the raw `SECURE_BOOT_EN` bit shown next to the API's answer; the three `SECURE_BOOT_KEY_REVOKE` bits; `SPI_BOOT_CRYPT_CNT` read with `esp_efuse_read_field_cnt()` (an *odd* popcount means flash encryption is on — that is how one field encodes on→off→on while only ever going one way); the burned `SECURE_VERSION` anti-rollback floor; the download-mode and JTAG lockout bits; the `WR_DIS`/`RD_DIS` protection masks; a per-slot inventory of the six key blocks (`EFUSE_BLK_KEY0..KEY5`) with purpose, read/write protection and a free-slot count; and the optional 128-bit factory chip UID. In STEP 1 this whole block reads as *nothing burned* — that empty state is the baseline STEP 3 fills in.
+
+> **Two API traps this block is written around:** `esp_efuse_read_field_blob()`'s
+> third argument is a **bit** count, not `sizeof()`; and the key-purpose type is
+> `esp_efuse_purpose_t` — `esp_efuse_key_purpose_t` does not exist anywhere in
+> ESP-IDF (only the `ESP_EFUSE_KEY_PURPOSE_*` *enumerators* use that spelling).
+> The whole `esp_efuse_set_*` / `esp_efuse_write_*` family permanently blows
+> fuses and must never appear in a status reporter.
+
+6. **Interpretation** — a short `ESP_LOGI`/`ESP_LOGW` explainer that changes with state: if Secure Boot is on it warns that flashing an unsigned image will now brick the boot; if off it points to README Stage 3; if flash is unencrypted it warns that the flash is *"readable with `esptool read_flash`."* A final per-STEP line states what this step proved and names the next one.
 
 **The heartbeat:** after the one-shot report, the program enters an infinite loop that every 5 seconds (`vTaskDelay(pdMS_TO_TICKS(5000))`) logs:
 
